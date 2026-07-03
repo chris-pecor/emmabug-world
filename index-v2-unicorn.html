@@ -22,7 +22,6 @@
   .rbtn:active { transform:scale(.92); }
   #bookBtn { top:calc(12px + env(safe-area-inset-top)); right:12px; }
   #muteBtn { top:calc(12px + env(safe-area-inset-top)); right:82px; }
-  #vehicleBtn { top:calc(12px + env(safe-area-inset-top)); right:152px; }
   #bookBtn.pulse { animation:pulse 1s ease-in-out infinite; }
   @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.18); box-shadow:0 0 18px #ff8fc8;} }
 
@@ -94,7 +93,6 @@
 <body>
 <canvas id="c"></canvas>
 <button class="rbtn" id="muteBtn">🔊</button>
-<button class="rbtn" id="vehicleBtn">🦄</button>
 <button class="rbtn" id="bookBtn">📖</button>
 <div id="hotbar"></div>
 <div id="book" class="hidden">
@@ -104,7 +102,7 @@
     <div id="bookSets"></div>
   </div>
 </div>
-<div id="splash">🦄✨ Emmabug's Unicorn World ✨🚲</div>
+<div id="splash">🦄✨ Emmabug's Unicorn World ✨🦄</div>
 
 <script>
 'use strict';
@@ -260,7 +258,6 @@ let removed = new Set();
 let placed = new Map();
 let discovered = new Set();
 let selected = null;
-let vehicle = 'unicorn';   // or 'bike'
 let collectCount = 0;
 let muted = false;
 let dirty = false;
@@ -276,7 +273,7 @@ function save() {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       seed, px: player.x, py: player.y, ang: player.ang, inv,
       removed: [...removed], placed: [...placed],
-      discovered: [...discovered], collectCount, muted, vehicle,
+      discovered: [...discovered], collectCount, muted,
     }));
     dirty = false;
   } catch (e) {}
@@ -293,7 +290,6 @@ function load() {
     discovered = new Set(s.discovered || []);
     collectCount = s.collectCount || 0;
     muted = !!s.muted;
-    vehicle = s.vehicle === 'bike' ? 'bike' : 'unicorn';
     return true;
   } catch (e) { return false; }
 }
@@ -372,11 +368,9 @@ const PINKS = ['#ff8fc8','#ffd1e8','#c77dff','#fff','#ffe066'];
 
 // ============================================================ creatures — unicorns everywhere!
 const CTYPES = [
-  { e:'🦄', w:0.20, size:0.75, kind:'baby' },      // little baby unicorn
-  { e:'🦄', w:0.16, size:1.1,  kind:'unicorn' },
-  { e:'🦄', w:0.10, size:1.45, kind:'queen' },     // big sparkly queen unicorn
-  { e:'🐶', w:0.18, size:0.85, kind:'puppy' },
-  { e:'🐱', w:0.16, size:0.8,  kind:'kitty' },
+  { e:'🦄', w:0.35, size:0.75, kind:'baby' },      // little baby unicorn
+  { e:'🦄', w:0.30, size:1.1,  kind:'unicorn' },
+  { e:'🦄', w:0.15, size:1.45, kind:'queen' },     // big sparkly queen unicorn
   { e:'🦋', w:0.20, size:0.5,  kind:'butterfly' },
 ];
 function spawnCreature() {
@@ -401,7 +395,7 @@ function updateCreatures(dt) {
       c.ang += (Math.random() - 0.5) * 3 * dt;
       c.x += Math.cos(c.ang) * 1.2 * dt;
       c.y += Math.sin(c.ang) * 1.2 * dt;
-    } else if (k === 'baby' || k === 'puppy') { // babies and puppies bounce about playfully
+    } else if (k === 'baby') { // babies hop about playfully
       c.timer -= dt;
       if (c.timer <= 0) {
         if (c.hop > 0) { c.hop = 0; c.timer = 0.7 + Math.random() * 1.4; }
@@ -498,18 +492,6 @@ muteBtn.addEventListener('pointerdown', ev => {
   if (!muted) sChime();
 });
 syncMute();
-
-// ============================================================ vehicle switch
-const vehicleBtn = $('vehicleBtn');
-function syncVehicle() { vehicleBtn.textContent = vehicle === 'bike' ? '🚲' : '🦄'; }
-vehicleBtn.addEventListener('pointerdown', ev => {
-  ev.stopPropagation();
-  vehicle = vehicle === 'bike' ? 'unicorn' : 'bike';
-  dirty = true; syncVehicle();
-  sChime();
-  sparkle(W / 2, H - 120, 14, PINKS);
-});
-syncVehicle();
 
 // ============================================================ input
 // left joystick: up = walk forward, left/right = turn (like driving)
@@ -662,10 +644,10 @@ function update(dt) {
   if (keys.has('ArrowDown') || keys.has('s')) fwd -= 1;
   turn = Math.max(-1, Math.min(1, turn));
   fwd = Math.max(-1, Math.min(1, fwd));
-  player.ang += turn * (vehicle === 'bike' ? 2.6 : 2.3) * dt;
+  player.ang += turn * 2.3 * dt;
   player.walking = Math.abs(fwd) > 0.12;
   if (player.walking) {
-    const sp = fwd * (vehicle === 'bike' ? 6.2 : 4.0) * dt;  // the bike is zippy!
+    const sp = fwd * 4.0 * dt;
     const mx = Math.cos(player.ang) * sp, my = Math.sin(player.ang) * sp;
     const r = 0.28;
     const nx = player.x + mx;
@@ -810,56 +792,7 @@ function drawDecorShape(d) {
 
 // Emma's own unicorn nose, horn and rainbow mane at the bottom of the view
 const MANE = ['#ff9aa2','#ffcf9c','#fff3ad','#a8e6cf','#a5c8ff','#d8b5ff'];
-function drawBike() {
-  const bob = player.walking ? Math.sin(time * 14) * 3 : Math.sin(time * 1.6) * 1.5;
-  const cx = W / 2, s = Math.min(W, H) / 412;
-  // handlebar: one pink swoop from corner to corner
-  ctx.strokeStyle = '#ff5fa2'; ctx.lineWidth = 15 * s; ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(cx - 175 * s, H - 30 * s + bob);
-  ctx.quadraticCurveTo(cx - 120 * s, H - 105 * s + bob, cx, H - 105 * s + bob);
-  ctx.quadraticCurveTo(cx + 120 * s, H - 105 * s + bob, cx + 175 * s, H - 30 * s + bob);
-  ctx.stroke();
-  // grips
-  ctx.fillStyle = '#fff';
-  for (const side of [-1, 1]) {
-    ctx.beginPath(); ctx.arc(cx + side * 175 * s, H - 30 * s + bob, 15 * s, 0, 6.283); ctx.fill();
-  }
-  // streamers flutter from the grips
-  ctx.lineWidth = 5 * s;
-  for (const side of [-1, 1]) {
-    for (let i = 0; i < 3; i++) {
-      ctx.strokeStyle = MANE[(i * 2 + (side > 0 ? 1 : 0)) % MANE.length];
-      const gx = cx + side * 183 * s, gy = H - 26 * s + bob;
-      ctx.beginPath();
-      ctx.moveTo(gx, gy);
-      ctx.quadraticCurveTo(
-        gx + side * 28 * s, gy + 16 * s + Math.sin(time * 9 + i * 2) * 8 * s,
-        gx + side * 46 * s, gy + 34 * s + Math.cos(time * 8 + i) * 9 * s);
-      ctx.stroke();
-    }
-  }
-  // bell
-  ctx.fillStyle = '#ffd166';
-  ctx.beginPath(); ctx.arc(cx - 95 * s, H - 92 * s + bob, 11 * s, 0, 6.283); ctx.fill();
-  ctx.strokeStyle = '#eab84c'; ctx.lineWidth = 2.5 * s;
-  ctx.beginPath(); ctx.arc(cx - 95 * s, H - 92 * s + bob, 11 * s, 0, 6.283); ctx.stroke();
-  // flower basket front and center
-  ctx.fillStyle = '#fff';
-  ctx.strokeStyle = '#ff8fc8'; ctx.lineWidth = 4 * s;
-  ctx.beginPath();
-  ctx.moveTo(cx - 62 * s, H - 88 * s + bob);
-  ctx.lineTo(cx + 62 * s, H - 88 * s + bob);
-  ctx.lineTo(cx + 46 * s, H - 22 * s + bob);
-  ctx.lineTo(cx - 46 * s, H - 22 * s + bob);
-  ctx.closePath(); ctx.fill(); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(cx - 58 * s, H - 66 * s + bob); ctx.lineTo(cx + 58 * s, H - 66 * s + bob); ctx.stroke();
-  ctx.font = Math.round(34 * s) + 'px sans-serif';
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('🌸🌷🌸', cx, H - 92 * s + bob);
-}
 function drawSelf() {
-  if (vehicle === 'bike') { drawBike(); return; }
   const bob = player.walking ? Math.sin(time * 10) * 7 : Math.sin(time * 1.6) * 2.5;
   const cx = W / 2, base = H + 40 + bob;
   const s = Math.min(W, H) / 412;   // scale with screen

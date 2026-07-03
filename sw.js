@@ -1,4 +1,4 @@
-const CACHE = 'emmabug-v2';
+const CACHE = 'emmabug-v3';
 const FILES = ['./', './index.html', './icon.svg', './manifest.webmanifest'];
 
 self.addEventListener('install', e => {
