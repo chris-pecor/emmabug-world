@@ -1,0 +1,13 @@
+{
+  "name": "Emmabug's Sea World",
+  "short_name": "Emmabug Sea",
+  "description": "A sparkly ocean adventure for Emma",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#c9ecf7",
+  "theme_color": "#7fc8e8",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
