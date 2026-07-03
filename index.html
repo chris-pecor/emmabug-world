@@ -812,7 +812,9 @@ function drawDecorShape(d) {
 const MANE = ['#ff9aa2','#ffcf9c','#fff3ad','#a8e6cf','#a5c8ff','#d8b5ff'];
 function drawBike() {
   const bob = player.walking ? Math.sin(time * 14) * 3 : Math.sin(time * 1.6) * 1.5;
-  const cx = W / 2, s = Math.min(W, H) / 412;
+  const cx = W / 2;
+  let s = Math.min(W, H) / 412;
+  if (W > H) s *= 1.35;   // landscape: shorter screen shrinks her ride too much
   // handlebar: one pink swoop from corner to corner
   ctx.strokeStyle = '#ff5fa2'; ctx.lineWidth = 15 * s; ctx.lineCap = 'round';
   ctx.beginPath();
@@ -862,7 +864,8 @@ function drawSelf() {
   if (vehicle === 'bike') { drawBike(); return; }
   const bob = player.walking ? Math.sin(time * 10) * 7 : Math.sin(time * 1.6) * 2.5;
   const cx = W / 2, base = H + 40 + bob;
-  const s = Math.min(W, H) / 412;   // scale with screen
+  let s = Math.min(W, H) / 412;   // scale with screen
+  if (W > H) s *= 1.35;   // landscape: shorter screen shrinks her too much
   // head (seen from behind, at bottom of view)
   ctx.fillStyle = '#fff';
   ctx.beginPath(); ctx.ellipse(cx, base, 95 * s, 105 * s, 0, 3.1416, 0); ctx.fill();
