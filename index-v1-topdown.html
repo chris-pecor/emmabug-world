@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#ff8fc8">
+<title>Emmabug's World</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#ffd9ec; overscroll-behavior:none;
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  #c { display:block; width:100%; height:100%; touch-action:none; }
+
+  .rbtn {
+    position:fixed; width:58px; height:58px; border-radius:50%;
+    border:3px solid #ff8fc8; background:rgba(255,255,255,.88);
+    font-size:28px; line-height:1; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 3px 10px rgba(214,51,132,.25); z-index:10; user-select:none;
+  }
+  .rbtn:active { transform:scale(.92); }
+  #bookBtn { top:calc(12px + env(safe-area-inset-top)); right:12px; }
+  #muteBtn { top:calc(12px + env(safe-area-inset-top)); right:82px; }
+  #bookBtn.pulse { animation:pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.18); box-shadow:0 0 18px #ff8fc8;} }
+
+  #hotbar {
+    position:fixed; bottom:calc(10px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%);
+    display:flex; gap:8px; max-width:94vw; overflow-x:auto; padding:6px; z-index:10;
+    scrollbar-width:none;
+  }
+  #hotbar::-webkit-scrollbar { display:none; }
+  .slot {
+    flex:0 0 auto; width:58px; height:58px; border-radius:16px;
+    background:rgba(255,255,255,.85); border:3px solid #ffc2e0;
+    font-size:30px; display:flex; align-items:center; justify-content:center;
+    position:relative; user-select:none;
+  }
+  .slot.sel { border-color:#ff2d8d; background:#fff; transform:scale(1.12); box-shadow:0 0 14px #ff8fc8; }
+  .slot .ct {
+    position:absolute; bottom:-4px; right:-4px; background:#ff2d8d; color:#fff;
+    font-size:13px; font-weight:700; min-width:22px; height:22px; border-radius:11px;
+    display:flex; align-items:center; justify-content:center; padding:0 5px;
+    border:2px solid #fff;
+  }
+
+  #book {
+    position:fixed; inset:0; background:rgba(90,20,80,.45); z-index:20;
+    display:flex; align-items:center; justify-content:center; padding:14px;
+  }
+  #book.hidden { display:none; }
+  #bookPanel {
+    background:linear-gradient(160deg,#ffe3f2,#f0dcff);
+    border:4px solid #ff8fc8; border-radius:26px;
+    width:min(520px,96vw); max-height:88vh; overflow-y:auto;
+    padding:18px; box-shadow:0 10px 40px rgba(120,20,90,.4); position:relative;
+  }
+  #bookPanel h1 { text-align:center; font-size:30px; margin-bottom:6px; }
+  #closeBook {
+    position:sticky; top:0; float:right; width:52px; height:52px; border-radius:50%;
+    border:3px solid #ff8fc8; background:#fff; font-size:22px; z-index:2;
+  }
+  .setrow { margin:14px 0 4px; font-size:24px; display:flex; align-items:center; gap:8px; }
+  .setrow .star { font-size:26px; animation:spinstar 2.4s linear infinite; }
+  @keyframes spinstar { 0%,100%{transform:rotate(-12deg) scale(1)} 50%{transform:rotate(12deg) scale(1.25)} }
+  .setgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(72px,1fr)); gap:10px; }
+  .sticker {
+    background:rgba(255,255,255,.8); border:3px solid #ffc2e0; border-radius:18px;
+    aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-size:34px;
+  }
+  .sticker.found { border-color:#c77dff; background:#fff; box-shadow:0 2px 8px rgba(199,125,255,.35); }
+  .sticker.mystery { opacity:.45; filter:grayscale(1); }
+  .sticker .n { font-size:13px; font-weight:700; color:#b0338a; margin-top:2px; }
+
+  #splash {
+    position:fixed; top:18%; left:50%; transform:translateX(-50%);
+    font-size:clamp(26px,7vw,44px); font-weight:800; color:#ff2d8d;
+    text-shadow:0 2px 0 #fff, 0 4px 14px rgba(255,45,141,.4);
+    z-index:15; pointer-events:none; white-space:nowrap;
+    animation:splash 4.5s ease forwards;
+  }
+  @keyframes splash {
+    0% { opacity:0; transform:translateX(-50%) scale(.6); }
+    15% { opacity:1; transform:translateX(-50%) scale(1.05); }
+    25% { transform:translateX(-50%) scale(1); }
+    80% { opacity:1; }
+    100% { opacity:0; transform:translateX(-50%) scale(1.1); }
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<button class="rbtn" id="muteBtn">🔊</button>
+<button class="rbtn" id="bookBtn">📖</button>
+<div id="hotbar"></div>
+<div id="book" class="hidden">
+  <div id="bookPanel">
+    <button id="closeBook">❌</button>
+    <h1>📖 💖 🦋</h1>
+    <div id="bookSets"></div>
+  </div>
+</div>
+<div id="splash">💖🦋 Emmabug's World 🦄💖</div>
+
+<script>
+'use strict';
+// ============================================================ setup
+const $ = id => document.getElementById(id);
+const canvas = $('c'), ctx = canvas.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const TS = 46;          // tile size (css px)
+const CH = 16;          // chunk side in tiles
+const REACH = 3.6;      // how far Emma can reach, in tiles
+
+// ============================================================ deterministic noise
+function h2i(x, y, s) {
+  let n = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(s, 1013904223);
+  n = Math.imul(n ^ (n >>> 13), 1274126177);
+  return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+}
+function sm(t) { return t * t * (3 - 2 * t); }
+function vnoise(x, y, s) {
+  const xi = Math.floor(x), yi = Math.floor(y);
+  const fx = sm(x - xi), fy = sm(y - yi);
+  const a = h2i(xi, yi, s), b = h2i(xi + 1, yi, s);
+  const c = h2i(xi, yi + 1, s), d = h2i(xi + 1, yi + 1, s);
+  return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
+}
+
+// ============================================================ items & sets
+const ITEMS = {
+  blossom:  { e:'🌸', n:'Blossom' },
+  tulip:    { e:'🌷', n:'Tulip' },
+  rose:     { e:'🌹', n:'Rose' },
+  lavender: { e:'🪻', n:'Lavender' },
+  wood:     { e:'🪵', n:'Pink Wood' },
+  mushroom: { e:'🍄', n:'Mushroom' },
+  rock:     { e:'🪨', n:'Rock' },
+  brick:    { e:'🧱', n:'Brick' },
+  gem:      { e:'💎', n:'Gem' },
+  orb:      { e:'🔮', n:'Orb' },
+  stardust: { e:'✨', n:'Stardust' },
+  rainbow:  { e:'🌈', n:'Rainbow' },
+  heart:    { e:'💗', n:'Heart' },
+  cupcake:  { e:'🧁', n:'Cupcake' },
+};
+const SETS = [
+  { name:'Flowers',   e:'🌸', items:['blossom','tulip','rose','lavender'] },
+  { name:'Nature',    e:'🌳', items:['wood','mushroom','rock','brick'] },
+  { name:'Gems',      e:'💎', items:['gem','orb','stardust'] },
+  { name:'Treasures', e:'🌈', items:['rainbow','heart','cupcake'] },
+];
+
+// ============================================================ world / biomes
+const WATER=0, MEADOW=1, LAV=2, FOREST=3, CANDY=4, MOUNT=5;
+let seed = 0;
+
+function biomeAt(x, y) {
+  const e = vnoise(x/26, y/26, seed ^ 11) * 0.65 + vnoise(x/9, y/9, seed ^ 23) * 0.35;
+  if (e < 0.30) return WATER;
+  if (e > 0.76) return MOUNT;
+  const b = vnoise(x/31, y/31, seed ^ 37);
+  if (b < 0.25) return LAV;
+  if (b < 0.52) return MEADOW;
+  if (b < 0.78) return FOREST;
+  return CANDY;
+}
+
+// decor types
+const D_TREE=1, D_FLB=2, D_FLT=3, D_FLR=4, D_FLL=5, D_MUSH=6, D_ROCK=7,
+      D_CRYS=8, D_SPARK=9, D_RAIN=10, D_HEARTD=11, D_CAKE=12;
+
+const chunks = new Map();
+function chunkAt(cx, cy) {
+  const key = cx + ',' + cy;
+  let ch = chunks.get(key);
+  if (ch) return ch;
+  const tiles = new Uint8Array(CH * CH);
+  const decor = [];
+  for (let j = 0; j < CH; j++) {
+    for (let i = 0; i < CH; i++) {
+      const x = cx * CH + i, y = cy * CH + j;
+      const t = biomeAt(x, y);
+      tiles[j * CH + i] = t;
+      const r = h2i(x, y, seed ^ 101);
+      const r2 = h2i(x, y, seed ^ 202);
+      let d = 0;
+      if (t === MEADOW) {
+        if (r > 0.99975) d = D_RAIN;
+        else if (r > 0.9990) d = D_HEARTD;
+        else if (r < 0.055) d = r2 < 0.45 ? D_FLB : (r2 < 0.75 ? D_FLT : D_FLR);
+        else if (r < 0.070) d = D_TREE;
+      } else if (t === LAV) {
+        if (r > 0.99975) d = D_RAIN;
+        else if (r > 0.9990) d = D_HEARTD;
+        else if (r < 0.095) d = D_FLL;
+        else if (r < 0.112) d = D_FLT;
+      } else if (t === FOREST) {
+        if (r > 0.99975) d = D_RAIN;
+        else if (r < 0.085) d = D_TREE;
+        else if (r < 0.112) d = D_MUSH;
+        else if (r < 0.128) d = D_FLB;
+      } else if (t === CANDY) {
+        if (r > 0.9997) d = D_RAIN;
+        else if (r < 0.060) d = D_MUSH;
+        else if (r < 0.078) d = D_ROCK;
+        else if (r < 0.0815) d = D_CAKE;
+      } else if (t === MOUNT) {
+        if (r < 0.075) d = D_CRYS;
+        else if (r < 0.115) d = D_ROCK;
+      } else if (t === WATER) {
+        if (r < 0.030) d = D_SPARK;
+      }
+      if (d) decor.push({
+        x: x + 0.5 + (r2 - 0.5) * 0.3,
+        y: y + 0.5 + (h2i(x, y, seed ^ 303) - 0.5) * 0.3,
+        tx: x, ty: y, t: d, v: r2,
+      });
+    }
+  }
+  ch = { tiles, decor };
+  chunks.set(key, ch);
+  if (chunks.size > 220) pruneChunks();
+  return ch;
+}
+function pruneChunks() {
+  const pcx = Math.floor(player.x / CH), pcy = Math.floor(player.y / CH);
+  for (const key of chunks.keys()) {
+    const [cx, cy] = key.split(',').map(Number);
+    if (Math.abs(cx - pcx) > 4 || Math.abs(cy - pcy) > 4) chunks.delete(key);
+  }
+}
+function tileAt(x, y) {
+  const cx = Math.floor(x / CH), cy = Math.floor(y / CH);
+  const ch = chunkAt(cx, cy);
+  return ch.tiles[(y - cy * CH) * CH + (x - cx * CH)];
+}
+function walkable(x, y) { return tileAt(Math.floor(x), Math.floor(y)) !== WATER; }
+
+// ============================================================ state
+const player = { x: 0, y: 0, vx: 0, vy: 0, face: 1, walking: false };
+let inv = {};                 // item -> count
+let removed = new Set();      // decor removed, "x,y"
+let placed = new Map();       // "x,y" -> item type
+let discovered = new Set();   // sticker book
+let selected = null;          // hotbar selection (place mode)
+let collectCount = 0;
+let muted = false;
+let dirty = false;
+let bookNew = false;
+const particles = [];
+const creatures = [];
+let time = 0;
+
+// ============================================================ save / load
+const SAVE_KEY = 'emmabug-world-save';
+function save() {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      seed, px: player.x, py: player.y, inv,
+      removed: [...removed], placed: [...placed],
+      discovered: [...discovered], collectCount, muted,
+    }));
+    dirty = false;
+  } catch (e) { /* private mode etc — play on without saving */ }
+}
+function load() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    const s = JSON.parse(raw);
+    seed = s.seed; player.x = s.px; player.y = s.py;
+    inv = s.inv || {};
+    removed = new Set(s.removed || []);
+    placed = new Map(s.placed || []);
+    discovered = new Set(s.discovered || []);
+    collectCount = s.collectCount || 0;
+    muted = !!s.muted;
+    return true;
+  } catch (e) { return false; }
+}
+setInterval(() => { if (dirty) save(); }, 3000);
+document.addEventListener('visibilitychange', () => { if (document.hidden && dirty) save(); });
+
+if (!load()) {
+  seed = (Math.random() * 1e9) | 0;
+  // find a nice land spawn near origin
+  outer:
+  for (let rr = 0; rr < 120; rr++) {
+    for (let a = 0; a < 20; a++) {
+      const x = Math.round(Math.cos(a / 20 * 6.283) * rr);
+      const y = Math.round(Math.sin(a / 20 * 6.283) * rr);
+      const b = biomeAt(x, y);
+      if (b !== WATER && b !== MOUNT) { player.x = x + 0.5; player.y = y + 0.5; break outer; }
+    }
+  }
+  dirty = true;
+}
+
+// ============================================================ sound
+let AC = null;
+function ac() {
+  if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+  if (AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function tone(f, dur, type, vol, delay, f2) {
+  if (muted) return;
+  try {
+    const a = ac(), t0 = a.currentTime + (delay || 0);
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t0);
+    if (f2) o.frequency.exponentialRampToValueAtTime(f2, t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(a.destination);
+    o.start(t0); o.stop(t0 + dur + 0.05);
+  } catch (e) {}
+}
+const sPop    = () => tone(520, 0.13, 'triangle', 0.22, 0, 190);
+const sChime  = () => { tone(880, 0.14, 'sine', 0.16); tone(1175, 0.18, 'sine', 0.16, 0.09); };
+const sNew    = () => { tone(659, 0.12, 'sine', 0.17); tone(880, 0.12, 'sine', 0.17, 0.09);
+                        tone(1109, 0.12, 'sine', 0.17, 0.18); tone(1319, 0.22, 'sine', 0.17, 0.27); };
+const sPlace  = () => tone(300, 0.09, 'sine', 0.2, 0, 170);
+const sHeart  = () => { tone(740, 0.1, 'sine', 0.14); tone(988, 0.13, 'sine', 0.14, 0.07); };
+const sTick   = () => tone(500, 0.05, 'sine', 0.06);
+
+// ============================================================ particles
+function sparkle(wx, wy, n, colors) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * 6.283, sp = 30 + Math.random() * 70;
+    particles.push({
+      x: wx, y: wy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 40,
+      g: 90, life: 0, tl: 0.5 + Math.random() * 0.4,
+      kind: 'dot', size: 2.5 + Math.random() * 3,
+      color: colors[(Math.random() * colors.length) | 0],
+    });
+  }
+}
+function floatTxt(wx, wy, txt, size) {
+  particles.push({ x: wx, y: wy, vx: 0, vy: -55, g: 0, life: 0, tl: 0.9, kind: 'txt', txt, size: size || 26 });
+}
+function heartBurst(wx, wy) {
+  for (let i = 0; i < 7; i++) {
+    const a = -0.6 - Math.random() * 2; // upward fan
+    particles.push({
+      x: wx + (Math.random() - 0.5) * 20, y: wy,
+      vx: Math.cos(a) * (20 + Math.random() * 40) * (Math.random() < 0.5 ? -1 : 1) * 0.5,
+      vy: -40 - Math.random() * 50, g: 20, life: 0, tl: 1 + Math.random() * 0.4,
+      kind: 'txt', txt: Math.random() < 0.5 ? '💕' : '💖', size: 16 + Math.random() * 12,
+    });
+  }
+}
+const PINKS = ['#ff8fc8','#ffd1e8','#c77dff','#fff','#ffe066'];
+
+// ============================================================ creatures
+const CTYPES = [
+  { e:'🦋', w:0.45, size:26, kind:'butterfly' },
+  { e:'🐰', w:0.25, size:30, kind:'bunny' },
+  { e:'🐱', w:0.18, size:30, kind:'cat' },
+  { e:'🦄', w:0.12, size:38, kind:'unicorn' },
+];
+function spawnCreature() {
+  const a = Math.random() * 6.283, d = 9 + Math.random() * 5;
+  const x = player.x + Math.cos(a) * d, y = player.y + Math.sin(a) * d;
+  let r = Math.random(), ct = CTYPES[0];
+  for (const c of CTYPES) { r -= c.w; if (r <= 0) { ct = c; break; } }
+  if (ct.kind !== 'butterfly' && !walkable(x, y)) return;
+  creatures.push({
+    x, y, type: ct, ang: Math.random() * 6.283,
+    timer: Math.random() * 2, hop: 0, phase: Math.random() * 6.283,
+  });
+}
+function updateCreatures(dt) {
+  if (creatures.length < 8 && Math.random() < 0.03) spawnCreature();
+  for (let i = creatures.length - 1; i >= 0; i--) {
+    const c = creatures[i];
+    const dx = c.x - player.x, dy = c.y - player.y;
+    if (dx * dx + dy * dy > 400) { creatures.splice(i, 1); continue; }
+    const k = c.type.kind;
+    if (k === 'butterfly') {
+      c.ang += (Math.random() - 0.5) * 3 * dt;
+      c.x += Math.cos(c.ang) * 1.2 * dt;
+      c.y += Math.sin(c.ang) * 1.2 * dt;
+    } else if (k === 'bunny') {
+      c.timer -= dt;
+      if (c.timer <= 0) {
+        if (c.hop > 0) { c.hop = 0; c.timer = 0.8 + Math.random() * 1.5; }
+        else { c.hop = 1; c.ang = Math.random() * 6.283; c.timer = 0.45; }
+      }
+      if (c.hop) {
+        const nx = c.x + Math.cos(c.ang) * 3.2 * dt, ny = c.y + Math.sin(c.ang) * 3.2 * dt;
+        if (walkable(nx, ny)) { c.x = nx; c.y = ny; }
+      }
+    } else { // cat & unicorn wander slowly
+      c.timer -= dt;
+      if (c.timer <= 0) { c.ang = Math.random() * 6.283; c.timer = 1.5 + Math.random() * 2.5; }
+      const sp = k === 'unicorn' ? 0.9 : 0.7;
+      const nx = c.x + Math.cos(c.ang) * sp * dt, ny = c.y + Math.sin(c.ang) * sp * dt;
+      if (walkable(nx, ny)) { c.x = nx; c.y = ny; }
+      if (k === 'unicorn' && Math.random() < dt * 2.5)
+        sparkle(c.x * TS, c.y * TS, 1, PINKS);
+    }
+  }
+}
+
+// ============================================================ inventory / hotbar
+const hotbarEl = $('hotbar');
+function addItem(type, n) {
+  inv[type] = (inv[type] || 0) + n;
+  if (!discovered.has(type)) {
+    discovered.add(type);
+    sNew();
+    bookNew = true;
+    $('bookBtn').classList.add('pulse');
+  }
+  dirty = true;
+  renderHotbar();
+}
+function renderHotbar() {
+  hotbarEl.innerHTML = '';
+  for (const type of Object.keys(ITEMS)) {
+    const n = inv[type];
+    if (!n) continue;
+    const d = document.createElement('div');
+    d.className = 'slot' + (selected === type ? ' sel' : '');
+    d.innerHTML = ITEMS[type].e + '<span class="ct">' + n + '</span>';
+    d.addEventListener('pointerdown', ev => {
+      ev.stopPropagation();
+      selected = (selected === type) ? null : type;
+      sTick();
+      renderHotbar();
+    });
+    hotbarEl.appendChild(d);
+  }
+}
+renderHotbar();
+
+// ============================================================ sticker book
+const bookEl = $('book');
+$('bookBtn').addEventListener('pointerdown', ev => {
+  ev.stopPropagation();
+  buildBook();
+  bookEl.classList.remove('hidden');
+  $('bookBtn').classList.remove('pulse');
+  bookNew = false;
+  sChime();
+});
+$('closeBook').addEventListener('pointerdown', () => { bookEl.classList.add('hidden'); sTick(); });
+bookEl.addEventListener('pointerdown', ev => { if (ev.target === bookEl) bookEl.classList.add('hidden'); });
+function buildBook() {
+  const host = $('bookSets');
+  host.innerHTML = '';
+  for (const set of SETS) {
+    const complete = set.items.every(i => discovered.has(i));
+    const row = document.createElement('div');
+    row.className = 'setrow';
+    row.innerHTML = set.e + (complete ? ' <span class="star">⭐</span>' : '');
+    host.appendChild(row);
+    const grid = document.createElement('div');
+    grid.className = 'setgrid';
+    for (const it of set.items) {
+      const cell = document.createElement('div');
+      if (discovered.has(it)) {
+        cell.className = 'sticker found';
+        cell.innerHTML = ITEMS[it].e + '<span class="n">×' + (inv[it] || 0) + '</span>';
+      } else {
+        cell.className = 'sticker mystery';
+        cell.textContent = '❓';
+      }
+      grid.appendChild(cell);
+    }
+    host.appendChild(grid);
+  }
+}
+
+// ============================================================ mute
+const muteBtn = $('muteBtn');
+function syncMute() { muteBtn.textContent = muted ? '🔇' : '🔊'; }
+muteBtn.addEventListener('pointerdown', ev => {
+  ev.stopPropagation();
+  muted = !muted; dirty = true; syncMute();
+  if (!muted) sChime();
+});
+syncMute();
+
+// ============================================================ input
+const joy = { active: false, id: -1, ax: 0, ay: 0, dx: 0, dy: 0, moved: false, t0: 0 };
+const keys = new Set();
+window.addEventListener('keydown', e => keys.add(e.key));
+window.addEventListener('keyup', e => keys.delete(e.key));
+
+function screenToWorld(sx, sy) {
+  return { x: (sx - W / 2) / TS + player.x, y: (sy - H / 2) / TS + player.y };
+}
+
+canvas.addEventListener('pointerdown', ev => {
+  ac(); // unlock audio on first touch
+  const x = ev.clientX, y = ev.clientY;
+  if (!joy.active && x < W * 0.5 && y > H * 0.45) {
+    joy.active = true; joy.id = ev.pointerId;
+    joy.ax = x; joy.ay = y; joy.dx = 0; joy.dy = 0;
+    joy.moved = false; joy.t0 = performance.now();
+  } else {
+    interact(x, y);
+  }
+});
+canvas.addEventListener('pointermove', ev => {
+  if (joy.active && ev.pointerId === joy.id) {
+    let dx = ev.clientX - joy.ax, dy = ev.clientY - joy.ay;
+    const d = Math.hypot(dx, dy);
+    if (d > 12) joy.moved = true;
+    const max = 58;
+    if (d > max) { dx = dx / d * max; dy = dy / d * max; }
+    joy.dx = dx; joy.dy = dy;
+  }
+});
+function joyEnd(ev) {
+  if (joy.active && ev.pointerId === joy.id) {
+    if (!joy.moved && performance.now() - joy.t0 < 350) interact(joy.ax, joy.ay);
+    joy.active = false; joy.dx = 0; joy.dy = 0;
+  }
+}
+canvas.addEventListener('pointerup', joyEnd);
+canvas.addEventListener('pointercancel', joyEnd);
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+// ============================================================ interactions
+function dropsFor(t) {
+  const out = [];
+  const r = Math.random();
+  switch (t) {
+    case D_TREE:  out.push(['wood', 1 + (Math.random() < 0.5 ? 1 : 0)]);
+                  if (r < 0.3) out.push(['blossom', 1]); break;
+    case D_FLB:   out.push(['blossom', 1]); break;
+    case D_FLT:   out.push(['tulip', 1]); break;
+    case D_FLR:   out.push(['rose', 1]); break;
+    case D_FLL:   out.push(['lavender', 1]); break;
+    case D_MUSH:  out.push(['mushroom', 1]); if (r < 0.08) out.push(['cupcake', 1]); break;
+    case D_ROCK:  out.push(['rock', 1]); if (r < 0.25) out.push(['brick', 1]); break;
+    case D_CRYS:  out.push([r < 0.7 ? 'gem' : 'orb', 1]); break;
+    case D_SPARK: out.push(['stardust', 1]); break;
+    case D_RAIN:  out.push(['rainbow', 1]); break;
+    case D_HEARTD:out.push(['heart', 1]); break;
+    case D_CAKE:  out.push(['cupcake', 1]); break;
+  }
+  return out;
+}
+
+function nearbyDecor(wx, wy, rad) {
+  const cx0 = Math.floor((wx - 1) / CH), cx1 = Math.floor((wx + 1) / CH);
+  const cy0 = Math.floor((wy - 1) / CH), cy1 = Math.floor((wy + 1) / CH);
+  let best = null, bd = rad * rad;
+  for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
+    for (const d of chunkAt(cx, cy).decor) {
+      if (removed.has(d.tx + ',' + d.ty)) continue;
+      const dx = d.x - wx, dy = d.y - wy;
+      const dd = dx * dx + dy * dy;
+      if (dd < bd) { bd = dd; best = d; }
+    }
+  }
+  return best;
+}
+
+function interact(sx, sy) {
+  const w = screenToWorld(sx, sy);
+  const pd = Math.hypot(w.x - player.x, w.y - player.y);
+  if (pd > REACH + 0.6) { // too far — friendly little poof, no sound
+    sparkle(w.x * TS, w.y * TS, 3, ['#ffd1e8']);
+    return;
+  }
+  // 1. creatures
+  for (const c of creatures) {
+    if (Math.hypot(c.x - w.x, c.y - w.y) < 1.0) {
+      heartBurst(c.x * TS, (c.y - 0.5) * TS);
+      sHeart();
+      return;
+    }
+  }
+  // 2. collect decor
+  const d = nearbyDecor(w.x, w.y, 0.95);
+  if (d) {
+    removed.add(d.tx + ',' + d.ty);
+    dirty = true;
+    collectCount++;
+    for (const [item, n] of dropsFor(d.t)) {
+      addItem(item, n);
+      floatTxt(d.x * TS, (d.y - 0.6) * TS, ITEMS[item].e, 30);
+    }
+    sparkle(d.x * TS, d.y * TS, 12, PINKS);
+    sPop();
+    return;
+  }
+  // 3. pick up a placed item
+  const tx = Math.floor(w.x), ty = Math.floor(w.y);
+  const pk = tx + ',' + ty;
+  if (placed.has(pk)) {
+    const it = placed.get(pk);
+    placed.delete(pk);
+    addItem(it, 1);
+    floatTxt((tx + 0.5) * TS, ty * TS, ITEMS[it].e, 28);
+    sparkle((tx + 0.5) * TS, (ty + 0.5) * TS, 8, PINKS);
+    sPop();
+    return;
+  }
+  // 4. place selected item
+  if (selected && inv[selected] > 0 && tileAt(tx, ty) !== WATER && !nearbyDecor(tx + 0.5, ty + 0.5, 0.6)) {
+    placed.set(pk, selected);
+    inv[selected]--;
+    if (inv[selected] <= 0) { delete inv[selected]; selected = null; }
+    dirty = true;
+    renderHotbar();
+    sparkle((tx + 0.5) * TS, (ty + 0.5) * TS, 8, PINKS);
+    sPlace();
+    return;
+  }
+  // 5. nothing there — tiny happy poof so every tap feels alive
+  sparkle(w.x * TS, w.y * TS, 4, ['#ffd1e8', '#fff']);
+}
+
+// ============================================================ update
+function update(dt) {
+  time += dt;
+  let mx = 0, my = 0;
+  if (joy.active) { mx = joy.dx / 58; my = joy.dy / 58; }
+  if (keys.has('ArrowLeft') || keys.has('a')) mx -= 1;
+  if (keys.has('ArrowRight') || keys.has('d')) mx += 1;
+  if (keys.has('ArrowUp') || keys.has('w')) my -= 1;
+  if (keys.has('ArrowDown') || keys.has('s')) my += 1;
+  const mag = Math.hypot(mx, my);
+  if (mag > 1) { mx /= mag; my /= mag; }
+  player.walking = mag > 0.1;
+  if (player.walking) {
+    const sp = 4.2 * dt;
+    if (Math.abs(mx) > 0.05) player.face = mx > 0 ? 1 : -1;
+    const r = 0.28;
+    let nx = player.x + mx * sp;
+    if (walkable(nx - r, player.y - r) && walkable(nx + r, player.y - r) &&
+        walkable(nx - r, player.y + r) && walkable(nx + r, player.y + r)) player.x = nx;
+    let ny = player.y + my * sp;
+    if (walkable(player.x - r, ny - r) && walkable(player.x + r, ny - r) &&
+        walkable(player.x - r, ny + r) && walkable(player.x + r, ny + r)) player.y = ny;
+    dirty = true;
+  }
+  updateCreatures(dt);
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.life += dt;
+    if (p.life > p.tl) { particles.splice(i, 1); continue; }
+    p.vy += p.g * dt;
+    p.x += p.vx * dt; p.y += p.vy * dt;
+  }
+}
+
+// ============================================================ draw
+const TILE_COLORS = {
+  [WATER]:  ['#c5ddff', '#bcd6fc'],
+  [MEADOW]: ['#ffd9ec', '#ffcfe6'],
+  [LAV]:    ['#e6d4f5', '#dfc9f2'],
+  [FOREST]: ['#f0c6ee', '#eabce8'],
+  [CANDY]:  ['#ffe3f0', '#ffdaeb'],
+  [MOUNT]:  ['#d9c6ea', '#d0bbe4'],
+};
+
+function drawDecor(d, sx, sy) {
+  const t = d.t;
+  if (t === D_TREE) {
+    ctx.fillStyle = '#b97a56';
+    ctx.fillRect(sx - 4, sy - 16, 8, 18);
+    ctx.fillStyle = d.v < 0.5 ? '#ff9ed2' : '#e79ef5';
+    ctx.beginPath(); ctx.arc(sx, sy - 30, 17, 0, 6.283); ctx.fill();
+    ctx.beginPath(); ctx.arc(sx - 12, sy - 22, 12, 0, 6.283); ctx.fill();
+    ctx.beginPath(); ctx.arc(sx + 12, sy - 22, 12, 0, 6.283); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.75)';
+    ctx.beginPath(); ctx.arc(sx - 6, sy - 34, 2.5, 0, 6.283); ctx.fill();
+    ctx.beginPath(); ctx.arc(sx + 8, sy - 27, 2, 0, 6.283); ctx.fill();
+    ctx.beginPath(); ctx.arc(sx + 1, sy - 22, 2, 0, 6.283); ctx.fill();
+  } else if (t === D_CRYS) {
+    const c1 = d.v < 0.5 ? '#b06cf0' : '#e05ad0';
+    ctx.fillStyle = c1;
+    ctx.beginPath(); ctx.moveTo(sx - 10, sy); ctx.lineTo(sx - 5, sy - 24); ctx.lineTo(sx, sy); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(sx - 2, sy); ctx.lineTo(sx + 5, sy - 30); ctx.lineTo(sx + 12, sy); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    ctx.beginPath(); ctx.moveTo(sx + 3, sy - 22); ctx.lineTo(sx + 5, sy - 30); ctx.lineTo(sx + 8, sy - 12); ctx.closePath(); ctx.fill();
+  } else if (t === D_ROCK) {
+    ctx.fillStyle = '#c9b3d6';
+    ctx.beginPath(); ctx.ellipse(sx, sy - 6, 13, 10, 0, 0, 6.283); ctx.fill();
+    ctx.fillStyle = '#dcc9e8';
+    ctx.beginPath(); ctx.ellipse(sx - 3, sy - 9, 7, 5, 0, 0, 6.283); ctx.fill();
+  } else if (t === D_SPARK) {
+    const tw = 0.6 + 0.4 * Math.sin(time * 4 + d.v * 20);
+    ctx.globalAlpha = tw;
+    ctx.font = '22px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('✨', sx, sy - 6);
+    ctx.globalAlpha = 1;
+  } else {
+    const em = { [D_FLB]:'🌸', [D_FLT]:'🌷', [D_FLR]:'🌹', [D_FLL]:'🪻',
+                 [D_MUSH]:'🍄', [D_RAIN]:'🌈', [D_HEARTD]:'💗', [D_CAKE]:'🧁' }[t];
+    const big = (t === D_RAIN);
+    const bob = (t === D_RAIN || t === D_HEARTD) ? Math.sin(time * 3 + d.v * 9) * 3 : 0;
+    ctx.font = (big ? 34 : 26) + 'px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(em, sx, sy - 12 + bob);
+  }
+}
+
+function drawPlayer(sx, sy) {
+  const bob = player.walking ? Math.abs(Math.sin(time * 11)) * 3 : 0;
+  ctx.fillStyle = 'rgba(120,40,90,.18)';
+  ctx.beginPath(); ctx.ellipse(sx, sy, 11, 5, 0, 0, 6.283); ctx.fill();
+  const f = player.face;
+  // dress
+  ctx.fillStyle = '#ff5fa2';
+  ctx.beginPath();
+  ctx.moveTo(sx, sy - 26 - bob);
+  ctx.lineTo(sx + 12, sy - 3 - bob);
+  ctx.quadraticCurveTo(sx, sy + 2 - bob, sx - 12, sy - 3 - bob);
+  ctx.closePath(); ctx.fill();
+  // pigtails behind head
+  ctx.fillStyle = '#7a4a2b';
+  ctx.beginPath(); ctx.arc(sx - 9, sy - 33 - bob, 4.5, 0, 6.283); ctx.fill();
+  ctx.beginPath(); ctx.arc(sx + 9, sy - 33 - bob, 4.5, 0, 6.283); ctx.fill();
+  // bows
+  ctx.fillStyle = '#ff9fc9';
+  ctx.beginPath(); ctx.arc(sx - 9, sy - 37 - bob, 2.4, 0, 6.283); ctx.fill();
+  ctx.beginPath(); ctx.arc(sx + 9, sy - 37 - bob, 2.4, 0, 6.283); ctx.fill();
+  // hair cap
+  ctx.fillStyle = '#7a4a2b';
+  ctx.beginPath(); ctx.arc(sx, sy - 31 - bob, 8.5, 0, 6.283); ctx.fill();
+  // face
+  ctx.fillStyle = '#ffdbc4';
+  ctx.beginPath(); ctx.arc(sx, sy - 29 - bob, 7, 0, 6.283); ctx.fill();
+  // eyes + smile
+  ctx.fillStyle = '#4a3040';
+  ctx.beginPath(); ctx.arc(sx - 2.6 + f, sy - 30 - bob, 1.1, 0, 6.283); ctx.fill();
+  ctx.beginPath(); ctx.arc(sx + 2.6 + f, sy - 30 - bob, 1.1, 0, 6.283); ctx.fill();
+  ctx.strokeStyle = '#c9527e'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.arc(sx + f * 0.5, sy - 27.5 - bob, 2.6, 0.35, 2.8); ctx.stroke();
+}
+
+function draw() {
+  const camX = player.x * TS - W / 2, camY = player.y * TS - H / 2;
+  const x0 = Math.floor(camX / TS) - 1, x1 = Math.ceil((camX + W) / TS) + 1;
+  const y0 = Math.floor(camY / TS) - 1, y1 = Math.ceil((camY + H) / TS) + 1;
+
+  // tiles
+  for (let ty = y0; ty <= y1; ty++) {
+    for (let tx = x0; tx <= x1; tx++) {
+      const t = tileAt(tx, ty);
+      const h = h2i(tx, ty, seed ^ 404);
+      ctx.fillStyle = TILE_COLORS[t][h < 0.5 ? 0 : 1];
+      const sx = tx * TS - camX, sy = ty * TS - camY;
+      ctx.fillRect(sx, sy, TS + 1, TS + 1);
+      if (t === WATER) {
+        const a = 0.25 + 0.25 * Math.sin(time * 2.5 + h * 12);
+        ctx.fillStyle = 'rgba(255,255,255,' + a.toFixed(2) + ')';
+        ctx.beginPath();
+        ctx.arc(sx + 8 + h * 28, sy + 10 + ((h * 7) % 1) * 26, 2, 0, 6.283);
+        ctx.fill();
+      } else if (t === CANDY && h > 0.75) {
+        ctx.fillStyle = ['#ff8fc8', '#c77dff', '#ffe066'][(h * 40) % 3 | 0];
+        ctx.fillRect(sx + 8 + h * 24, sy + 8 + ((h * 13) % 1) * 26, 3, 3);
+      } else if ((t === MEADOW || t === LAV) && h > 0.8) {
+        ctx.fillStyle = 'rgba(255,255,255,.4)';
+        ctx.beginPath(); ctx.arc(sx + h * 40, sy + ((h * 11) % 1) * 40, 1.6, 0, 6.283); ctx.fill();
+      }
+    }
+  }
+
+  // gather sortable drawables
+  const draws = [];
+  const cx0 = Math.floor(x0 / CH), cx1 = Math.floor(x1 / CH);
+  const cy0 = Math.floor(y0 / CH), cy1 = Math.floor(y1 / CH);
+  for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
+    for (const d of chunkAt(cx, cy).decor) {
+      if (d.x < x0 || d.x > x1 || d.y < y0 || d.y > y1) continue;
+      if (removed.has(d.tx + ',' + d.ty)) continue;
+      draws.push({ y: d.y, fn: () => drawDecor(d, d.x * TS - camX, d.y * TS - camY) });
+    }
+  }
+  for (const [key, it] of placed) {
+    const [tx, ty] = key.split(',').map(Number);
+    if (tx < x0 || tx > x1 || ty < y0 || ty > y1) continue;
+    draws.push({ y: ty + 0.5, fn: () => {
+      ctx.font = '30px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(ITEMS[it].e, (tx + 0.5) * TS - camX, (ty + 0.35) * TS - camY);
+    }});
+  }
+  for (const c of creatures) {
+    if (c.x < x0 || c.x > x1 || c.y < y0 || c.y > y1) continue;
+    draws.push({ y: c.y, fn: () => {
+      const bobc = c.type.kind === 'butterfly' ? Math.sin(time * 6 + c.phase) * 5
+                 : (c.hop ? -Math.abs(Math.sin(time * 12)) * 8 : 0);
+      ctx.font = c.type.size + 'px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(c.type.e, c.x * TS - camX, (c.y - 0.35) * TS - camY + bobc);
+    }});
+  }
+  draws.push({ y: player.y, fn: () => drawPlayer(player.x * TS - camX, player.y * TS - camY) });
+  draws.sort((a, b) => a.y - b.y);
+  for (const d of draws) d.fn();
+
+  // hint finger for brand-new explorers
+  if (collectCount < 3) {
+    const d = nearbyDecor(player.x, player.y, 8);
+    if (d) {
+      const hx = d.x * TS - camX, hy = (d.y - 1.15) * TS - camY + Math.sin(time * 5) * 6;
+      ctx.font = '30px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('👇', hx, hy);
+    }
+  }
+
+  // particles
+  for (const p of particles) {
+    const a = 1 - p.life / p.tl;
+    ctx.globalAlpha = Math.max(0, a);
+    if (p.kind === 'dot') {
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(p.x - camX, p.y - camY, p.size, 0, 6.283); ctx.fill();
+    } else {
+      ctx.font = p.size + 'px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(p.txt, p.x - camX, p.y - camY);
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // joystick
+  if (joy.active) {
+    ctx.fillStyle = 'rgba(255,255,255,.30)';
+    ctx.beginPath(); ctx.arc(joy.ax, joy.ay, 58, 0, 6.283); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,143,200,.8)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(joy.ax, joy.ay, 58, 0, 6.283); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,95,162,.85)';
+    ctx.beginPath(); ctx.arc(joy.ax + joy.dx, joy.ay + joy.dy, 26, 0, 6.283); ctx.fill();
+  }
+}
+
+// ============================================================ main loop
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min((now - last) / 1000, 0.05);
+  last = now;
+  update(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// ============================================================ pwa
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>

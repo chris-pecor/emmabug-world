@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#ff8fc8">
+<title>Emmabug's Unicorn World</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#ffd9ec; overscroll-behavior:none;
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  #c { display:block; width:100%; height:100%; touch-action:none; }
+
+  .rbtn {
+    position:fixed; width:58px; height:58px; border-radius:50%;
+    border:3px solid #ff8fc8; background:rgba(255,255,255,.88);
+    font-size:28px; line-height:1; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 3px 10px rgba(214,51,132,.25); z-index:10; user-select:none;
+  }
+  .rbtn:active { transform:scale(.92); }
+  #bookBtn { top:calc(12px + env(safe-area-inset-top)); right:12px; }
+  #muteBtn { top:calc(12px + env(safe-area-inset-top)); right:82px; }
+  #bookBtn.pulse { animation:pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.18); box-shadow:0 0 18px #ff8fc8;} }
+
+  #hotbar {
+    position:fixed; bottom:calc(10px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%);
+    display:flex; gap:8px; max-width:94vw; overflow-x:auto; padding:6px; z-index:10;
+    scrollbar-width:none;
+  }
+  #hotbar::-webkit-scrollbar { display:none; }
+  .slot {
+    flex:0 0 auto; width:58px; height:58px; border-radius:16px;
+    background:rgba(255,255,255,.85); border:3px solid #ffc2e0;
+    font-size:30px; display:flex; align-items:center; justify-content:center;
+    position:relative; user-select:none;
+  }
+  .slot.sel { border-color:#ff2d8d; background:#fff; transform:scale(1.12); box-shadow:0 0 14px #ff8fc8; }
+  .slot .ct {
+    position:absolute; bottom:-4px; right:-4px; background:#ff2d8d; color:#fff;
+    font-size:13px; font-weight:700; min-width:22px; height:22px; border-radius:11px;
+    display:flex; align-items:center; justify-content:center; padding:0 5px;
+    border:2px solid #fff;
+  }
+
+  #book {
+    position:fixed; inset:0; background:rgba(90,20,80,.45); z-index:20;
+    display:flex; align-items:center; justify-content:center; padding:14px;
+  }
+  #book.hidden { display:none; }
+  #bookPanel {
+    background:linear-gradient(160deg,#ffe3f2,#f0dcff);
+    border:4px solid #ff8fc8; border-radius:26px;
+    width:min(520px,96vw); max-height:88vh; overflow-y:auto;
+    padding:18px; box-shadow:0 10px 40px rgba(120,20,90,.4); position:relative;
+  }
+  #bookPanel h1 { text-align:center; font-size:30px; margin-bottom:6px; }
+  #closeBook {
+    position:sticky; top:0; float:right; width:52px; height:52px; border-radius:50%;
+    border:3px solid #ff8fc8; background:#fff; font-size:22px; z-index:2;
+  }
+  .setrow { margin:14px 0 4px; font-size:24px; display:flex; align-items:center; gap:8px; }
+  .setrow .star { font-size:26px; animation:spinstar 2.4s linear infinite; }
+  @keyframes spinstar { 0%,100%{transform:rotate(-12deg) scale(1)} 50%{transform:rotate(12deg) scale(1.25)} }
+  .setgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(72px,1fr)); gap:10px; }
+  .sticker {
+    background:rgba(255,255,255,.8); border:3px solid #ffc2e0; border-radius:18px;
+    aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-size:34px;
+  }
+  .sticker.found { border-color:#c77dff; background:#fff; box-shadow:0 2px 8px rgba(199,125,255,.35); }
+  .sticker.mystery { opacity:.45; filter:grayscale(1); }
+  .sticker .n { font-size:13px; font-weight:700; color:#b0338a; margin-top:2px; }
+
+  #splash {
+    position:fixed; top:16%; left:50%; transform:translateX(-50%);
+    font-size:clamp(22px,6vw,42px); font-weight:800; color:#ff2d8d;
+    text-shadow:0 2px 0 #fff, 0 4px 14px rgba(255,45,141,.4);
+    z-index:15; pointer-events:none; white-space:nowrap;
+    animation:splash 4.5s ease forwards;
+  }
+  @keyframes splash {
+    0% { opacity:0; transform:translateX(-50%) scale(.6); }
+    15% { opacity:1; transform:translateX(-50%) scale(1.05); }
+    25% { transform:translateX(-50%) scale(1); }
+    80% { opacity:1; }
+    100% { opacity:0; transform:translateX(-50%) scale(1.1); }
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<button class="rbtn" id="muteBtn">🔊</button>
+<button class="rbtn" id="bookBtn">📖</button>
+<div id="hotbar"></div>
+<div id="book" class="hidden">
+  <div id="bookPanel">
+    <button id="closeBook">❌</button>
+    <h1>📖 💖 🦄</h1>
+    <div id="bookSets"></div>
+  </div>
+</div>
+<div id="splash">🦄✨ Emmabug's Unicorn World ✨🦄</div>
+
+<script>
+'use strict';
+// ============================================================ setup
+const $ = id => document.getElementById(id);
+const canvas = $('c'), ctx = canvas.getContext('2d');
+let W = 0, H = 0, DPR = 1, focal = 300, horizon = 200;
+const FOV = 1.15; // ~66 degrees
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  focal = (W / 2) / Math.tan(FOV / 2);
+  horizon = Math.round(H * 0.44);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const CH = 16;          // chunk side in tiles
+const CAMH = 1.05;      // unicorn eye height, in tiles
+const REACH = 5.0;      // how far Emma can reach, in tiles
+
+// ============================================================ deterministic noise
+function h2i(x, y, s) {
+  let n = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(s, 1013904223);
+  n = Math.imul(n ^ (n >>> 13), 1274126177);
+  return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+}
+function sm(t) { return t * t * (3 - 2 * t); }
+function vnoise(x, y, s) {
+  const xi = Math.floor(x), yi = Math.floor(y);
+  const fx = sm(x - xi), fy = sm(y - yi);
+  const a = h2i(xi, yi, s), b = h2i(xi + 1, yi, s);
+  const c = h2i(xi, yi + 1, s), d = h2i(xi + 1, yi + 1, s);
+  return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
+}
+
+// ============================================================ items & sets
+const ITEMS = {
+  blossom:  { e:'🌸', n:'Blossom' },
+  tulip:    { e:'🌷', n:'Tulip' },
+  rose:     { e:'🌹', n:'Rose' },
+  lavender: { e:'🪻', n:'Lavender' },
+  wood:     { e:'🪵', n:'Pink Wood' },
+  mushroom: { e:'🍄', n:'Mushroom' },
+  rock:     { e:'🪨', n:'Rock' },
+  brick:    { e:'🧱', n:'Brick' },
+  gem:      { e:'💎', n:'Gem' },
+  orb:      { e:'🔮', n:'Orb' },
+  stardust: { e:'✨', n:'Stardust' },
+  rainbow:  { e:'🌈', n:'Rainbow' },
+  heart:    { e:'💗', n:'Heart' },
+  cupcake:  { e:'🧁', n:'Cupcake' },
+};
+const SETS = [
+  { name:'Flowers',   e:'🌸', items:['blossom','tulip','rose','lavender'] },
+  { name:'Nature',    e:'🌳', items:['wood','mushroom','rock','brick'] },
+  { name:'Gems',      e:'💎', items:['gem','orb','stardust'] },
+  { name:'Treasures', e:'🌈', items:['rainbow','heart','cupcake'] },
+];
+
+// ============================================================ world / biomes
+const WATER=0, MEADOW=1, LAV=2, FOREST=3, CANDY=4, MOUNT=5;
+let seed = 0;
+
+function biomeAt(x, y) {
+  const e = vnoise(x/26, y/26, seed ^ 11) * 0.65 + vnoise(x/9, y/9, seed ^ 23) * 0.35;
+  if (e < 0.30) return WATER;
+  if (e > 0.76) return MOUNT;
+  const b = vnoise(x/31, y/31, seed ^ 37);
+  if (b < 0.25) return LAV;
+  if (b < 0.52) return MEADOW;
+  if (b < 0.78) return FOREST;
+  return CANDY;
+}
+
+// decor types
+const D_TREE=1, D_FLB=2, D_FLT=3, D_FLR=4, D_FLL=5, D_MUSH=6, D_ROCK=7,
+      D_CRYS=8, D_SPARK=9, D_RAIN=10, D_HEARTD=11, D_CAKE=12;
+
+const chunks = new Map();
+function chunkAt(cx, cy) {
+  const key = cx + ',' + cy;
+  let ch = chunks.get(key);
+  if (ch) return ch;
+  const tiles = new Uint8Array(CH * CH);
+  const decor = [];
+  for (let j = 0; j < CH; j++) {
+    for (let i = 0; i < CH; i++) {
+      const x = cx * CH + i, y = cy * CH + j;
+      const t = biomeAt(x, y);
+      tiles[j * CH + i] = t;
+      const r = h2i(x, y, seed ^ 101);
+      const r2 = h2i(x, y, seed ^ 202);
+      let d = 0;
+      if (t === MEADOW) {
+        if (r > 0.99975) d = D_RAIN;
+        else if (r > 0.9990) d = D_HEARTD;
+        else if (r < 0.055) d = r2 < 0.45 ? D_FLB : (r2 < 0.75 ? D_FLT : D_FLR);
+        else if (r < 0.070) d = D_TREE;
+      } else if (t === LAV) {
+        if (r > 0.99975) d = D_RAIN;
+        else if (r > 0.9990) d = D_HEARTD;
+        else if (r < 0.095) d = D_FLL;
+        else if (r < 0.112) d = D_FLT;
+      } else if (t === FOREST) {
+        if (r > 0.99975) d = D_RAIN;
+        else if (r < 0.085) d = D_TREE;
+        else if (r < 0.112) d = D_MUSH;
+        else if (r < 0.128) d = D_FLB;
+      } else if (t === CANDY) {
+        if (r > 0.9997) d = D_RAIN;
+        else if (r < 0.060) d = D_MUSH;
+        else if (r < 0.078) d = D_ROCK;
+        else if (r < 0.0815) d = D_CAKE;
+      } else if (t === MOUNT) {
+        if (r < 0.075) d = D_CRYS;
+        else if (r < 0.115) d = D_ROCK;
+      } else if (t === WATER) {
+        if (r < 0.030) d = D_SPARK;
+      }
+      if (d) decor.push({
+        x: x + 0.5 + (r2 - 0.5) * 0.3,
+        y: y + 0.5 + (h2i(x, y, seed ^ 303) - 0.5) * 0.3,
+        tx: x, ty: y, t: d, v: r2,
+      });
+    }
+  }
+  ch = { tiles, decor };
+  chunks.set(key, ch);
+  if (chunks.size > 220) pruneChunks();
+  return ch;
+}
+function pruneChunks() {
+  const pcx = Math.floor(player.x / CH), pcy = Math.floor(player.y / CH);
+  for (const key of chunks.keys()) {
+    const [cx, cy] = key.split(',').map(Number);
+    if (Math.abs(cx - pcx) > 4 || Math.abs(cy - pcy) > 4) chunks.delete(key);
+  }
+}
+function tileAt(x, y) {
+  const cx = Math.floor(x / CH), cy = Math.floor(y / CH);
+  const ch = chunkAt(cx, cy);
+  return ch.tiles[(y - cy * CH) * CH + (x - cx * CH)];
+}
+function walkable(x, y) { return tileAt(Math.floor(x), Math.floor(y)) !== WATER; }
+
+// ============================================================ state
+const player = { x: 0, y: 0, ang: 0, walking: false };
+let inv = {};
+let removed = new Set();
+let placed = new Map();
+let discovered = new Set();
+let selected = null;
+let collectCount = 0;
+let muted = false;
+let dirty = false;
+const particles = [];   // screen-space
+const creatures = [];
+let spriteHits = [];    // last frame's tappable sprites: {x,y,w,h,dist,decor?,creature?,pkey?}
+let time = 0;
+
+// ============================================================ save / load
+const SAVE_KEY = 'emmabug-world-save';
+function save() {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      seed, px: player.x, py: player.y, ang: player.ang, inv,
+      removed: [...removed], placed: [...placed],
+      discovered: [...discovered], collectCount, muted,
+    }));
+    dirty = false;
+  } catch (e) {}
+}
+function load() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    const s = JSON.parse(raw);
+    seed = s.seed; player.x = s.px; player.y = s.py; player.ang = s.ang || 0;
+    inv = s.inv || {};
+    removed = new Set(s.removed || []);
+    placed = new Map(s.placed || []);
+    discovered = new Set(s.discovered || []);
+    collectCount = s.collectCount || 0;
+    muted = !!s.muted;
+    return true;
+  } catch (e) { return false; }
+}
+setInterval(() => { if (dirty) save(); }, 3000);
+document.addEventListener('visibilitychange', () => { if (document.hidden && dirty) save(); });
+
+if (!load()) {
+  seed = (Math.random() * 1e9) | 0;
+  outer:
+  for (let rr = 0; rr < 120; rr++) {
+    for (let a = 0; a < 20; a++) {
+      const x = Math.round(Math.cos(a / 20 * 6.283) * rr);
+      const y = Math.round(Math.sin(a / 20 * 6.283) * rr);
+      const b = biomeAt(x, y);
+      if (b !== WATER && b !== MOUNT) { player.x = x + 0.5; player.y = y + 0.5; break outer; }
+    }
+  }
+  dirty = true;
+}
+
+// ============================================================ sound
+let AC = null;
+function ac() {
+  if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+  if (AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function tone(f, dur, type, vol, delay, f2) {
+  if (muted) return;
+  try {
+    const a = ac(), t0 = a.currentTime + (delay || 0);
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t0);
+    if (f2) o.frequency.exponentialRampToValueAtTime(f2, t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(a.destination);
+    o.start(t0); o.stop(t0 + dur + 0.05);
+  } catch (e) {}
+}
+const sPop    = () => tone(520, 0.13, 'triangle', 0.22, 0, 190);
+const sChime  = () => { tone(880, 0.14, 'sine', 0.16); tone(1175, 0.18, 'sine', 0.16, 0.09); };
+const sNew    = () => { tone(659, 0.12, 'sine', 0.17); tone(880, 0.12, 'sine', 0.17, 0.09);
+                        tone(1109, 0.12, 'sine', 0.17, 0.18); tone(1319, 0.22, 'sine', 0.17, 0.27); };
+const sPlace  = () => tone(300, 0.09, 'sine', 0.2, 0, 170);
+const sHeart  = () => { tone(740, 0.1, 'sine', 0.14); tone(988, 0.13, 'sine', 0.14, 0.07); };
+const sTick   = () => tone(500, 0.05, 'sine', 0.06);
+
+// ============================================================ particles (screen space)
+function sparkle(sx, sy, n, colors) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * 6.283, sp = 40 + Math.random() * 90;
+    particles.push({
+      x: sx, y: sy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 50,
+      g: 120, life: 0, tl: 0.5 + Math.random() * 0.4,
+      kind: 'dot', size: 2.5 + Math.random() * 3.5,
+      color: colors[(Math.random() * colors.length) | 0],
+    });
+  }
+}
+function floatTxt(sx, sy, txt, size) {
+  particles.push({ x: sx, y: sy, vx: 0, vy: -70, g: 0, life: 0, tl: 0.9, kind: 'txt', txt, size: size || 30 });
+}
+function heartBurst(sx, sy) {
+  for (let i = 0; i < 7; i++) {
+    particles.push({
+      x: sx + (Math.random() - 0.5) * 30, y: sy,
+      vx: (Math.random() - 0.5) * 50,
+      vy: -50 - Math.random() * 60, g: 25, life: 0, tl: 1 + Math.random() * 0.4,
+      kind: 'txt', txt: Math.random() < 0.5 ? '💕' : '💖', size: 18 + Math.random() * 14,
+    });
+  }
+}
+const PINKS = ['#ff8fc8','#ffd1e8','#c77dff','#fff','#ffe066'];
+
+// ============================================================ creatures — unicorns everywhere!
+const CTYPES = [
+  { e:'🦄', w:0.35, size:0.75, kind:'baby' },      // little baby unicorn
+  { e:'🦄', w:0.30, size:1.1,  kind:'unicorn' },
+  { e:'🦄', w:0.15, size:1.45, kind:'queen' },     // big sparkly queen unicorn
+  { e:'🦋', w:0.20, size:0.5,  kind:'butterfly' },
+];
+function spawnCreature() {
+  const a = Math.random() * 6.283, d = 8 + Math.random() * 6;
+  const x = player.x + Math.cos(a) * d, y = player.y + Math.sin(a) * d;
+  let r = Math.random(), ct = CTYPES[0];
+  for (const c of CTYPES) { r -= c.w; if (r <= 0) { ct = c; break; } }
+  if (ct.kind !== 'butterfly' && !walkable(x, y)) return;
+  creatures.push({
+    x, y, type: ct, ang: Math.random() * 6.283,
+    timer: Math.random() * 2, hop: 0, phase: Math.random() * 6.283,
+  });
+}
+function updateCreatures(dt) {
+  if (creatures.length < 9 && Math.random() < 0.035) spawnCreature();
+  for (let i = creatures.length - 1; i >= 0; i--) {
+    const c = creatures[i];
+    const dx = c.x - player.x, dy = c.y - player.y;
+    if (dx * dx + dy * dy > 500) { creatures.splice(i, 1); continue; }
+    const k = c.type.kind;
+    if (k === 'butterfly') {
+      c.ang += (Math.random() - 0.5) * 3 * dt;
+      c.x += Math.cos(c.ang) * 1.2 * dt;
+      c.y += Math.sin(c.ang) * 1.2 * dt;
+    } else if (k === 'baby') { // babies hop about playfully
+      c.timer -= dt;
+      if (c.timer <= 0) {
+        if (c.hop > 0) { c.hop = 0; c.timer = 0.7 + Math.random() * 1.4; }
+        else { c.hop = 1; c.ang = Math.random() * 6.283; c.timer = 0.5; }
+      }
+      if (c.hop) {
+        const nx = c.x + Math.cos(c.ang) * 2.8 * dt, ny = c.y + Math.sin(c.ang) * 2.8 * dt;
+        if (walkable(nx, ny)) { c.x = nx; c.y = ny; }
+      }
+    } else { // grown unicorns graze and wander
+      c.timer -= dt;
+      if (c.timer <= 0) { c.ang = Math.random() * 6.283; c.timer = 1.5 + Math.random() * 2.5; }
+      const sp = k === 'queen' ? 0.6 : 0.9;
+      const nx = c.x + Math.cos(c.ang) * sp * dt, ny = c.y + Math.sin(c.ang) * sp * dt;
+      if (walkable(nx, ny)) { c.x = nx; c.y = ny; }
+    }
+  }
+}
+
+// ============================================================ inventory / hotbar
+const hotbarEl = $('hotbar');
+function addItem(type, n) {
+  inv[type] = (inv[type] || 0) + n;
+  if (!discovered.has(type)) {
+    discovered.add(type);
+    sNew();
+    $('bookBtn').classList.add('pulse');
+  }
+  dirty = true;
+  renderHotbar();
+}
+function renderHotbar() {
+  hotbarEl.innerHTML = '';
+  for (const type of Object.keys(ITEMS)) {
+    const n = inv[type];
+    if (!n) continue;
+    const d = document.createElement('div');
+    d.className = 'slot' + (selected === type ? ' sel' : '');
+    d.innerHTML = ITEMS[type].e + '<span class="ct">' + n + '</span>';
+    d.addEventListener('pointerdown', ev => {
+      ev.stopPropagation();
+      selected = (selected === type) ? null : type;
+      sTick();
+      renderHotbar();
+    });
+    hotbarEl.appendChild(d);
+  }
+}
+renderHotbar();
+
+// ============================================================ sticker book
+const bookEl = $('book');
+$('bookBtn').addEventListener('pointerdown', ev => {
+  ev.stopPropagation();
+  buildBook();
+  bookEl.classList.remove('hidden');
+  $('bookBtn').classList.remove('pulse');
+  sChime();
+});
+$('closeBook').addEventListener('pointerdown', () => { bookEl.classList.add('hidden'); sTick(); });
+bookEl.addEventListener('pointerdown', ev => { if (ev.target === bookEl) bookEl.classList.add('hidden'); });
+function buildBook() {
+  const host = $('bookSets');
+  host.innerHTML = '';
+  for (const set of SETS) {
+    const complete = set.items.every(i => discovered.has(i));
+    const row = document.createElement('div');
+    row.className = 'setrow';
+    row.innerHTML = set.e + (complete ? ' <span class="star">⭐</span>' : '');
+    host.appendChild(row);
+    const grid = document.createElement('div');
+    grid.className = 'setgrid';
+    for (const it of set.items) {
+      const cell = document.createElement('div');
+      if (discovered.has(it)) {
+        cell.className = 'sticker found';
+        cell.innerHTML = ITEMS[it].e + '<span class="n">×' + (inv[it] || 0) + '</span>';
+      } else {
+        cell.className = 'sticker mystery';
+        cell.textContent = '❓';
+      }
+      grid.appendChild(cell);
+    }
+    host.appendChild(grid);
+  }
+}
+
+// ============================================================ mute
+const muteBtn = $('muteBtn');
+function syncMute() { muteBtn.textContent = muted ? '🔇' : '🔊'; }
+muteBtn.addEventListener('pointerdown', ev => {
+  ev.stopPropagation();
+  muted = !muted; dirty = true; syncMute();
+  if (!muted) sChime();
+});
+syncMute();
+
+// ============================================================ input
+// left joystick: up = walk forward, left/right = turn (like driving)
+const joy = { active: false, id: -1, ax: 0, ay: 0, dx: 0, dy: 0, moved: false, t0: 0 };
+const keys = new Set();
+window.addEventListener('keydown', e => keys.add(e.key));
+window.addEventListener('keyup', e => keys.delete(e.key));
+
+canvas.addEventListener('pointerdown', ev => {
+  ac();
+  const x = ev.clientX, y = ev.clientY;
+  if (!joy.active && x < W * 0.5 && y > H * 0.45) {
+    joy.active = true; joy.id = ev.pointerId;
+    joy.ax = x; joy.ay = y; joy.dx = 0; joy.dy = 0;
+    joy.moved = false; joy.t0 = performance.now();
+  } else {
+    interact(x, y);
+  }
+});
+canvas.addEventListener('pointermove', ev => {
+  if (joy.active && ev.pointerId === joy.id) {
+    let dx = ev.clientX - joy.ax, dy = ev.clientY - joy.ay;
+    const d = Math.hypot(dx, dy);
+    if (d > 12) joy.moved = true;
+    const max = 58;
+    if (d > max) { dx = dx / d * max; dy = dy / d * max; }
+    joy.dx = dx; joy.dy = dy;
+  }
+});
+function joyEnd(ev) {
+  if (joy.active && ev.pointerId === joy.id) {
+    if (!joy.moved && performance.now() - joy.t0 < 350) interact(joy.ax, joy.ay);
+    joy.active = false; joy.dx = 0; joy.dy = 0;
+  }
+}
+canvas.addEventListener('pointerup', joyEnd);
+canvas.addEventListener('pointercancel', joyEnd);
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+// ============================================================ interactions
+function dropsFor(t) {
+  const out = [];
+  const r = Math.random();
+  switch (t) {
+    case D_TREE:  out.push(['wood', 1 + (Math.random() < 0.5 ? 1 : 0)]);
+                  if (r < 0.3) out.push(['blossom', 1]); break;
+    case D_FLB:   out.push(['blossom', 1]); break;
+    case D_FLT:   out.push(['tulip', 1]); break;
+    case D_FLR:   out.push(['rose', 1]); break;
+    case D_FLL:   out.push(['lavender', 1]); break;
+    case D_MUSH:  out.push(['mushroom', 1]); if (r < 0.08) out.push(['cupcake', 1]); break;
+    case D_ROCK:  out.push(['rock', 1]); if (r < 0.25) out.push(['brick', 1]); break;
+    case D_CRYS:  out.push([r < 0.7 ? 'gem' : 'orb', 1]); break;
+    case D_SPARK: out.push(['stardust', 1]); break;
+    case D_RAIN:  out.push(['rainbow', 1]); break;
+    case D_HEARTD:out.push(['heart', 1]); break;
+    case D_CAKE:  out.push(['cupcake', 1]); break;
+  }
+  return out;
+}
+
+function decorNearTile(wx, wy, rad) {
+  const cx0 = Math.floor((wx - 1) / CH), cx1 = Math.floor((wx + 1) / CH);
+  const cy0 = Math.floor((wy - 1) / CH), cy1 = Math.floor((wy + 1) / CH);
+  for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
+    for (const d of chunkAt(cx, cy).decor) {
+      if (removed.has(d.tx + ',' + d.ty)) continue;
+      const dx = d.x - wx, dy = d.y - wy;
+      if (dx * dx + dy * dy < rad * rad) return d;
+    }
+  }
+  return null;
+}
+
+function interact(sx, sy) {
+  // 1. did she tap something on screen? (nearest first)
+  let hit = null;
+  for (const s of spriteHits) {
+    if (sx >= s.x && sx <= s.x + s.w && sy >= s.y && sy <= s.y + s.h) {
+      if (!hit || s.dist < hit.dist) hit = s;
+    }
+  }
+  if (hit && hit.dist <= REACH) {
+    const cx = hit.x + hit.w / 2, cy = hit.y + hit.h / 2;
+    if (hit.creature) {
+      heartBurst(cx, cy);
+      sHeart();
+      if (hit.creature.type.kind !== 'butterfly' && Math.random() < 0.2) {
+        addItem('heart', 1);
+        floatTxt(cx, cy - 20, '💗', 34);
+      }
+      return;
+    }
+    if (hit.decor) {
+      const d = hit.decor;
+      removed.add(d.tx + ',' + d.ty);
+      dirty = true;
+      collectCount++;
+      for (const [item, n] of dropsFor(d.t)) {
+        addItem(item, n);
+        floatTxt(cx, cy - 10, ITEMS[item].e, 34);
+      }
+      sparkle(cx, cy, 14, PINKS);
+      sPop();
+      return;
+    }
+    if (hit.pkey) {
+      const it = placed.get(hit.pkey);
+      placed.delete(hit.pkey);
+      addItem(it, 1);
+      floatTxt(cx, cy - 10, ITEMS[it].e, 32);
+      sparkle(cx, cy, 10, PINKS);
+      sPop();
+      return;
+    }
+  }
+  // 2. tapped open ground → place selected item there
+  if (sy > horizon + 8) {
+    const dist = CAMH * focal / (sy - horizon);
+    if (dist <= REACH && selected && inv[selected] > 0) {
+      const side = (sx - W / 2) / focal * dist;
+      const ca = Math.cos(player.ang), sa = Math.sin(player.ang);
+      const wx = player.x + ca * dist - sa * side;
+      const wy = player.y + sa * dist + ca * side;
+      const tx = Math.floor(wx), ty = Math.floor(wy);
+      if (tileAt(tx, ty) !== WATER && !placed.has(tx + ',' + ty) && !decorNearTile(tx + 0.5, ty + 0.5, 0.6)) {
+        placed.set(tx + ',' + ty, selected);
+        inv[selected]--;
+        if (inv[selected] <= 0) { delete inv[selected]; selected = null; }
+        dirty = true;
+        renderHotbar();
+        sparkle(sx, sy, 10, PINKS);
+        sPlace();
+        return;
+      }
+    }
+  }
+  // 3. nothing there — tiny happy poof so every tap feels alive
+  sparkle(sx, sy, 4, ['#ffd1e8', '#fff']);
+}
+
+// ============================================================ update
+function update(dt) {
+  time += dt;
+  let turn = 0, fwd = 0;
+  if (joy.active) { turn = joy.dx / 58; fwd = -joy.dy / 58; }
+  if (keys.has('ArrowLeft') || keys.has('a')) turn -= 1;
+  if (keys.has('ArrowRight') || keys.has('d')) turn += 1;
+  if (keys.has('ArrowUp') || keys.has('w')) fwd += 1;
+  if (keys.has('ArrowDown') || keys.has('s')) fwd -= 1;
+  turn = Math.max(-1, Math.min(1, turn));
+  fwd = Math.max(-1, Math.min(1, fwd));
+  player.ang += turn * 2.3 * dt;
+  player.walking = Math.abs(fwd) > 0.12;
+  if (player.walking) {
+    const sp = fwd * 4.0 * dt;
+    const mx = Math.cos(player.ang) * sp, my = Math.sin(player.ang) * sp;
+    const r = 0.28;
+    const nx = player.x + mx;
+    if (walkable(nx - r, player.y - r) && walkable(nx + r, player.y - r) &&
+        walkable(nx - r, player.y + r) && walkable(nx + r, player.y + r)) player.x = nx;
+    const ny = player.y + my;
+    if (walkable(player.x - r, ny - r) && walkable(player.x + r, ny - r) &&
+        walkable(player.x - r, ny + r) && walkable(player.x + r, ny + r)) player.y = ny;
+    dirty = true;
+  }
+  if (Math.abs(turn) > 0.1) dirty = true;
+  updateCreatures(dt);
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.life += dt;
+    if (p.life > p.tl) { particles.splice(i, 1); continue; }
+    p.vy += p.g * dt;
+    p.x += p.vx * dt; p.y += p.vy * dt;
+  }
+}
+
+// ============================================================ first-person rendering
+// ground palette: [r,g,b] x 2 shades per tile type (checkerboard shading)
+const PAL = [
+  [[197,221,255],[186,213,252]],  // water
+  [[255,217,236],[255,205,229]],  // meadow
+  [[230,212,245],[221,199,240]],  // lavender
+  [[240,198,238],[233,185,231]],  // forest
+  [[255,227,240],[255,216,234]],  // candy
+  [[217,198,234],[207,185,227]],  // mountain
+];
+const GW = 176, GH = 110;
+const gcan = document.createElement('canvas');
+gcan.width = GW; gcan.height = GH;
+const gctx = gcan.getContext('2d');
+const gimg = gctx.createImageData(GW, GH);
+const MAXDIST = 24;
+
+function drawGround() {
+  const groundH = H - horizon;
+  const ca = Math.cos(player.ang), sa = Math.sin(player.ang);
+  const tanH = Math.tan(FOV / 2);
+  const data = gimg.data;
+  let lcx = 1e9, lcy = 1e9, lch = null;
+  for (let r = 0; r < GH; r++) {
+    const sy = horizon + ((r + 0.7) / GH) * groundH;
+    let dist = CAMH * focal / (sy - horizon);
+    if (dist > MAXDIST) dist = MAXDIST;
+    // world position of leftmost ray at this distance, stepping right per column
+    let wx = player.x + (ca + sa * tanH) * dist;
+    let wy = player.y + (sa - ca * tanH) * dist;
+    const stepx = (-2 * sa * tanH * dist) / GW;
+    const stepy = (2 * ca * tanH * dist) / GW;
+    let o = r * GW * 4;
+    for (let c = 0; c < GW; c++) {
+      const tx = Math.floor(wx), ty = Math.floor(wy);
+      const ccx = tx >> 4, ccy = ty >> 4;
+      if (ccx !== lcx || ccy !== lcy) { lch = chunkAt(ccx, ccy); lcx = ccx; lcy = ccy; }
+      const t = lch.tiles[(ty - (ccy << 4)) * CH + (tx - (ccx << 4))];
+      const col = PAL[t][(tx ^ ty) & 1];
+      data[o] = col[0]; data[o + 1] = col[1]; data[o + 2] = col[2]; data[o + 3] = 255;
+      o += 4;
+      wx += stepx; wy += stepy;
+    }
+  }
+  gctx.putImageData(gimg, 0, 0);
+  ctx.drawImage(gcan, 0, horizon, W, groundH);
+  // distance fog melts into the sky
+  const fog = ctx.createLinearGradient(0, horizon, 0, horizon + groundH * 0.35);
+  fog.addColorStop(0, 'rgba(255,224,244,0.95)');
+  fog.addColorStop(1, 'rgba(255,224,244,0)');
+  ctx.fillStyle = fog;
+  ctx.fillRect(0, horizon, W, groundH * 0.35);
+}
+
+function drawSky() {
+  const g = ctx.createLinearGradient(0, 0, 0, horizon);
+  g.addColorStop(0, '#cdb3f5');
+  g.addColorStop(0.7, '#ffd7ef');
+  g.addColorStop(1, '#ffe0f4');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, horizon);
+  // clouds + a far-off rainbow drift past as she turns
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const skyThings = [
+    { a: 0.9,  y: 0.55, e: '🌈', s: 92, drift: 0 },
+    { a: 2.1,  y: 0.30, e: '☁️', s: 54, drift: 0.02 },
+    { a: 3.6,  y: 0.42, e: '☁️', s: 44, drift: 0.013 },
+    { a: 5.2,  y: 0.25, e: '☁️', s: 60, drift: 0.017 },
+    { a: 0.2,  y: 0.20, e: '⭐', s: 30, drift: 0 },
+  ];
+  for (const th of skyThings) {
+    let da = (th.a + time * th.drift - player.ang) % 6.283;
+    if (da > 3.1416) da -= 6.283;
+    if (da < -3.1416) da += 6.283;
+    if (Math.abs(da) > FOV * 0.9) continue;
+    ctx.font = th.s + 'px sans-serif';
+    ctx.globalAlpha = 0.9;
+    ctx.fillText(th.e, W / 2 + (da / (FOV / 2)) * (W / 2), horizon * th.y);
+    ctx.globalAlpha = 1;
+  }
+}
+
+// draws one decor object at origin in ~46px-per-tile units (scaled by caller)
+function drawDecorShape(d) {
+  const t = d.t;
+  if (t === D_TREE) {
+    ctx.fillStyle = '#b97a56';
+    ctx.fillRect(-4, -16, 8, 18);
+    ctx.fillStyle = d.v < 0.5 ? '#ff9ed2' : '#e79ef5';
+    ctx.beginPath(); ctx.arc(0, -30, 17, 0, 6.283); ctx.fill();
+    ctx.beginPath(); ctx.arc(-12, -22, 12, 0, 6.283); ctx.fill();
+    ctx.beginPath(); ctx.arc(12, -22, 12, 0, 6.283); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.75)';
+    ctx.beginPath(); ctx.arc(-6, -34, 2.5, 0, 6.283); ctx.fill();
+    ctx.beginPath(); ctx.arc(8, -27, 2, 0, 6.283); ctx.fill();
+  } else if (t === D_CRYS) {
+    ctx.fillStyle = d.v < 0.5 ? '#b06cf0' : '#e05ad0';
+    ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(-5, -24); ctx.lineTo(0, 0); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-2, 0); ctx.lineTo(5, -30); ctx.lineTo(12, 0); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    ctx.beginPath(); ctx.moveTo(3, -22); ctx.lineTo(5, -30); ctx.lineTo(8, -12); ctx.closePath(); ctx.fill();
+  } else if (t === D_ROCK) {
+    ctx.fillStyle = '#c9b3d6';
+    ctx.beginPath(); ctx.ellipse(0, -6, 13, 10, 0, 0, 6.283); ctx.fill();
+    ctx.fillStyle = '#dcc9e8';
+    ctx.beginPath(); ctx.ellipse(-3, -9, 7, 5, 0, 0, 6.283); ctx.fill();
+  } else if (t === D_SPARK) {
+    ctx.globalAlpha *= 0.6 + 0.4 * Math.sin(time * 4 + d.v * 20);
+    ctx.font = '24px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText('✨', 0, -8);
+  } else {
+    const em = { [D_FLB]:'🌸', [D_FLT]:'🌷', [D_FLR]:'🌹', [D_FLL]:'🪻',
+                 [D_MUSH]:'🍄', [D_RAIN]:'🌈', [D_HEARTD]:'💗', [D_CAKE]:'🧁' }[t];
+    const big = (t === D_RAIN);
+    const bob = (t === D_RAIN || t === D_HEARTD) ? Math.sin(time * 3 + d.v * 9) * 4 : 0;
+    ctx.font = (big ? 36 : 27) + 'px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(em, 0, -6 + bob);
+  }
+}
+
+// Emma's own unicorn nose, horn and rainbow mane at the bottom of the view
+const MANE = ['#ff9aa2','#ffcf9c','#fff3ad','#a8e6cf','#a5c8ff','#d8b5ff'];
+function drawSelf() {
+  const bob = player.walking ? Math.sin(time * 10) * 7 : Math.sin(time * 1.6) * 2.5;
+  const cx = W / 2, base = H + 40 + bob;
+  const s = Math.min(W, H) / 412;   // scale with screen
+  // head (seen from behind, at bottom of view)
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.ellipse(cx, base, 95 * s, 105 * s, 0, 3.1416, 0); ctx.fill();
+  ctx.strokeStyle = '#f3d9ea'; ctx.lineWidth = 3 * s;
+  ctx.beginPath(); ctx.ellipse(cx, base, 95 * s, 105 * s, 0, 3.1416, 0); ctx.stroke();
+  // ears
+  ctx.fillStyle = '#fff';
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(cx + side * 62 * s, base - 78 * s);
+    ctx.lineTo(cx + side * 84 * s, base - 128 * s);
+    ctx.lineTo(cx + side * 34 * s, base - 96 * s);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#ffc9e3';
+    ctx.beginPath();
+    ctx.moveTo(cx + side * 60 * s, base - 84 * s);
+    ctx.lineTo(cx + side * 74 * s, base - 116 * s);
+    ctx.lineTo(cx + side * 44 * s, base - 94 * s);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#fff';
+  }
+  // golden horn
+  ctx.fillStyle = '#ffd166';
+  ctx.beginPath();
+  ctx.moveTo(cx - 14 * s, base - 96 * s);
+  ctx.lineTo(cx, base - 185 * s - bob * 0.5);
+  ctx.lineTo(cx + 14 * s, base - 96 * s);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#eab84c'; ctx.lineWidth = 2.5 * s;
+  for (let i = 1; i <= 3; i++) {
+    const yy = base - 96 * s - i * 22 * s;
+    const ww = 14 * s * (1 - i * 0.24);
+    ctx.beginPath(); ctx.moveTo(cx - ww, yy); ctx.lineTo(cx + ww, yy); ctx.stroke();
+  }
+  // rainbow mane flowing down the left side
+  ctx.lineWidth = 9 * s; ctx.lineCap = 'round';
+  for (let i = 0; i < MANE.length; i++) {
+    ctx.strokeStyle = MANE[i];
+    const off = i * 10 * s;
+    ctx.beginPath();
+    ctx.moveTo(cx - 40 * s - off * 0.4, base - 92 * s + off * 0.5);
+    ctx.quadraticCurveTo(
+      cx - 110 * s - off, base - 40 * s + Math.sin(time * 3 + i) * 6 * s,
+      cx - 120 * s - off, base + 30 * s);
+    ctx.stroke();
+  }
+  // occasional sparkle off the horn
+  if (Math.random() < 0.06) sparkle(cx + (Math.random() - 0.5) * 20, base - 180 * s, 2, PINKS);
+}
+
+function draw() {
+  drawSky();
+  drawGround();
+
+  // ---- billboard sprites (far to near)
+  const ca = Math.cos(player.ang), sa = Math.sin(player.ang);
+  const tanH = Math.tan(FOV / 2);
+  const sprites = [];
+  const pcx = Math.floor(player.x / CH), pcy = Math.floor(player.y / CH);
+  for (let cy = pcy - 2; cy <= pcy + 2; cy++) for (let cx = pcx - 2; cx <= pcx + 2; cx++) {
+    for (const d of chunkAt(cx, cy).decor) {
+      if (removed.has(d.tx + ',' + d.ty)) continue;
+      const dx = d.x - player.x, dy = d.y - player.y;
+      const fwd = dx * ca + dy * sa;
+      if (fwd < 0.3 || fwd > MAXDIST) continue;
+      const side = -dx * sa + dy * ca;
+      if (Math.abs(side) > fwd * tanH * 1.5 + 2) continue;
+      sprites.push({ fwd, side, decor: d });
+    }
+  }
+  for (const [key, it] of placed) {
+    const [tx, ty] = key.split(',').map(Number);
+    const dx = tx + 0.5 - player.x, dy = ty + 0.5 - player.y;
+    const fwd = dx * ca + dy * sa;
+    if (fwd < 0.3 || fwd > MAXDIST) continue;
+    const side = -dx * sa + dy * ca;
+    if (Math.abs(side) > fwd * tanH * 1.5 + 2) continue;
+    sprites.push({ fwd, side, pkey: key, item: it });
+  }
+  for (const c of creatures) {
+    const dx = c.x - player.x, dy = c.y - player.y;
+    const fwd = dx * ca + dy * sa;
+    if (fwd < 0.3 || fwd > MAXDIST) continue;
+    const side = -dx * sa + dy * ca;
+    if (Math.abs(side) > fwd * tanH * 1.5 + 2) continue;
+    sprites.push({ fwd, side, creature: c });
+  }
+  sprites.sort((a, b) => b.fwd - a.fwd);
+
+  spriteHits = [];
+  let hintTarget = null;
+  for (const sp of sprites) {
+    const sx = W / 2 + (sp.side / sp.fwd) * focal;
+    const gy = horizon + (CAMH * focal) / sp.fwd;
+    const k = (focal / sp.fwd) / 46;
+    const alpha = sp.fwd > 16 ? Math.max(0, 1 - (sp.fwd - 16) / 8) : 1;
+    if (alpha <= 0.02) continue;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(sx, gy);
+    ctx.scale(k, k);
+    if (sp.decor) {
+      drawDecorShape(sp.decor);
+    } else if (sp.pkey) {
+      ctx.font = '30px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+      ctx.fillText(ITEMS[sp.item].e, 0, -4);
+    } else {
+      const c = sp.creature;
+      const bobc = c.type.kind === 'butterfly' ? Math.sin(time * 6 + c.phase) * 8 - 18
+                 : (c.hop ? -Math.abs(Math.sin(time * 12)) * 10 : 0);
+      ctx.font = Math.round(40 * c.type.size) + 'px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+      // unicorn emoji faces left; flip so she walks her own way
+      if (Math.cos(c.ang) > 0 && c.type.kind !== 'butterfly') ctx.scale(-1, 1);
+      ctx.fillText(c.type.e, 0, -4 + bobc);
+      if (c.type.kind === 'queen' && Math.random() < 0.1)
+        particles.push({ x: sx + (Math.random() - 0.5) * 60 * k, y: gy - 30 * k, vx: 0, vy: -30,
+                         g: 0, life: 0, tl: 0.6, kind: 'dot', size: 3, color: '#fff' });
+    }
+    ctx.restore();
+    // tappable region (screen space)
+    const wpx = 50 * k, hpx = 70 * k;
+    const rect = { x: sx - wpx / 2, y: gy - hpx, w: wpx, h: hpx + 10 * k,
+                   dist: sp.fwd, decor: sp.decor, creature: sp.creature, pkey: sp.pkey };
+    spriteHits.push(rect);
+    if (sp.decor && sp.fwd <= REACH && (!hintTarget || sp.fwd < hintTarget.dist)) hintTarget = rect;
+  }
+  spriteHits.reverse(); // nearest first for hit-testing
+
+  // hint finger for brand-new explorers
+  if (collectCount < 3 && hintTarget) {
+    ctx.font = '34px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('👇', hintTarget.x + hintTarget.w / 2, hintTarget.y - 22 + Math.sin(time * 5) * 7);
+  }
+
+  drawSelf();
+
+  // particles on top
+  for (const p of particles) {
+    const a = 1 - p.life / p.tl;
+    ctx.globalAlpha = Math.max(0, a);
+    if (p.kind === 'dot') {
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, 6.283); ctx.fill();
+    } else {
+      ctx.font = p.size + 'px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(p.txt, p.x, p.y);
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // joystick
+  if (joy.active) {
+    ctx.fillStyle = 'rgba(255,255,255,.30)';
+    ctx.beginPath(); ctx.arc(joy.ax, joy.ay, 58, 0, 6.283); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,143,200,.8)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(joy.ax, joy.ay, 58, 0, 6.283); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,95,162,.85)';
+    ctx.beginPath(); ctx.arc(joy.ax + joy.dx, joy.ay + joy.dy, 26, 0, 6.283); ctx.fill();
+  }
+}
+
+// ============================================================ main loop
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min((now - last) / 1000, 0.05);
+  last = now;
+  update(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// ============================================================ pwa
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>

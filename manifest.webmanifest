@@ -1,0 +1,13 @@
+{
+  "name": "Emmabug's World",
+  "short_name": "Emmabug",
+  "description": "A sparkly pink exploring game for Emma",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffd9ec",
+  "theme_color": "#ff8fc8",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
