@@ -1,7 +1,12 @@
 # AI-DLC Inception Prompt — Emmabug's Candy Kingdom: Tiny Multiplayer
 
-Paste everything below the line into your AI-DLC workflow to kick off Inception
-(intent capture → mob elaboration → units of work).
+> **Decision (2026-07-04):** Built directly in v6.0 without running an AI-DLC cycle —
+> the ceremony wasn't worth it for a one-file hobby game; this doc served as the
+> requirements capture. Transport chosen by Chris: **PeerJS/WebRTC star topology**
+> (host relays state, PeerJS public cloud for signaling, no accounts, no backend).
+> Known trade-off: strict-NAT/CGNAT networks may fail to connect; the game degrades
+> kindly to solo. All constraints below were implemented (5-player cap, preset candy
+> names, private 4-char codes, emoji-only reactions, shared room candy, solo-first).
 
 ---
 

@@ -26,6 +26,64 @@
   }
   .rbtn:active { transform:scale(.92); }
   #muteBtn { top:calc(12px + env(safe-area-inset-top)); right:12px; }
+  #mpBtn { top:calc(12px + env(safe-area-inset-top)); right:82px; }
+
+  .rxn {
+    position:fixed; right:calc(124px + env(safe-area-inset-right));
+    width:54px; height:54px; border-radius:50%;
+    border:3px solid #ffc2e0; background:rgba(255,255,255,.85);
+    font-size:26px; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 3px 10px rgba(214,51,132,.25); z-index:10;
+    user-select:none; touch-action:manipulation;
+  }
+  .rxn:active { transform:scale(1.15); background:#ffd6ec; }
+  .rxn.hidden { display:none; }
+  #rx0 { bottom:calc(20px + env(safe-area-inset-bottom)); }
+  #rx1 { bottom:calc(82px + env(safe-area-inset-bottom)); }
+  #rx2 { bottom:calc(144px + env(safe-area-inset-bottom)); }
+  #roomPill.hidden { display:none; }
+
+  #mpOverlay {
+    position:fixed; inset:0; z-index:30; display:flex; align-items:center; justify-content:center;
+    background:rgba(180,120,220,.45); backdrop-filter:blur(3px); padding:16px;
+  }
+  #mpOverlay.hidden { display:none; }
+  #mpBox {
+    background:linear-gradient(160deg,#fff0fa,#ffe3f2 55%,#e9d5ff);
+    border:4px solid #ff8fc8; border-radius:26px; text-align:center;
+    width:min(430px,94vw); max-height:88vh; overflow-y:auto;
+    padding:22px 18px; box-shadow:0 10px 40px rgba(214,51,132,.35); position:relative;
+  }
+  #mpBox h1 { font-size:clamp(24px,5.5vw,32px); color:#d63384; margin:0 26px 10px; text-shadow:0 2px 0 #fff; }
+  #mpBox p { font-size:clamp(15px,3.8vw,18px); color:#8b3a72; margin-bottom:12px; line-height:1.4; }
+  .mpMsg { font-weight:800; color:#c2187a !important; }
+  .mpX {
+    position:absolute; top:10px; right:10px; width:44px; height:44px; border-radius:50%;
+    border:3px solid #ff8fc8; background:#fff; font-size:18px; cursor:pointer;
+  }
+  #nameGrid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:14px; }
+  .nameBtn {
+    border:3px solid #ffc2e0; background:#fff; border-radius:14px;
+    font-size:15px; font-weight:800; color:#8b3a72; padding:7px 2px; cursor:pointer; line-height:1.5;
+  }
+  .nameBtn.sel { border-color:#f0359b; background:#ffd6ec; box-shadow:0 0 10px #ff8fc8; }
+  .mpBtn2 {
+    display:block; width:100%; margin:8px 0; font-size:clamp(17px,4.5vw,21px); font-weight:900;
+    color:#fff; border:none; cursor:pointer; background:linear-gradient(180deg,#ff7ab8,#f0359b);
+    border-radius:30px; padding:12px; box-shadow:0 4px 0 #c2187a;
+  }
+  .mpBtn2:active { transform:translateY(2px); box-shadow:0 2px 0 #c2187a; }
+  .joinRow { display:flex; gap:8px; }
+  .joinRow .mpBtn2 { width:auto; flex:1; }
+  #codeIn {
+    flex:1; min-width:0; font-size:26px; font-weight:900; text-align:center;
+    text-transform:uppercase; letter-spacing:.3em; border:3px solid #ffc2e0;
+    border-radius:16px; color:#d63384; background:#fff; padding:8px;
+  }
+  .bigCode {
+    font-size:44px; font-weight:900; letter-spacing:.25em; color:#d63384; background:#fff;
+    border:3px dashed #ff8fc8; border-radius:16px; padding:8px 0 8px .25em; margin-bottom:12px;
+  }
 
   #hud {
     position:fixed; top:calc(12px + env(safe-area-inset-top)); left:12px; z-index:10;
@@ -100,8 +158,14 @@
 <div id="hud">
   <div class="pill" id="chocPill">🍫 0</div>
   <div class="pill" id="levelPill">⭐ 1</div>
+  <div class="pill hidden" id="roomPill">🏰</div>
 </div>
 <div class="rbtn" id="muteBtn">🔊</div>
+<div class="rbtn" id="mpBtn">👨‍👩‍👧</div>
+<div class="rxn hidden" id="rx0">💗</div>
+<div class="rxn hidden" id="rx1">🎉</div>
+<div class="rxn hidden" id="rx2">👋</div>
+<div id="mpOverlay" class="hidden"><div id="mpBox"></div></div>
 
 <div class="padBtn" id="leftBtn">◀</div>
 <div class="padBtn" id="rightBtn">▶</div>
@@ -124,10 +188,12 @@
 <script>
 'use strict';
 /* ============================================================
-   Emmabug's Candy Kingdom — v5.4
+   Emmabug's Candy Kingdom — v6.0
    2D candy side-scroller. Mobile-first, no fail states.
    Two levels; each castle door opens with a sliding-tile puzzle.
    Giant gumdrop trampolines give a super bounce.
+   Family multiplayer: private room codes, up to 5 players,
+   preset candy names, emoji reactions, shared candy count.
    ============================================================ */
 
 const canvas = document.getElementById('c');
@@ -395,6 +461,7 @@ function update(dt) {
         cd.got = true;
         if (cd.kind === 'lolli') { choc += 5; sfx.lolli(); burstRainbow(cd.x, cy, 16); }
         else { choc += 1; sfx.collect(); burst(cd.x, cy, 8, '#8b5a2b'); burst(cd.x, cy, 5, '#ffd6ec'); }
+        mpCandy(cd.kind === 'lolli' ? 5 : 1);
         document.getElementById('chocPill').textContent = '🍫 ' + choc;
       }
     }
@@ -407,7 +474,7 @@ function update(dt) {
       if (b.happy > 0) b.happy -= dt;
       const dx = b.x - P.x, dy = gt - 30 - (P.y - P.h * .5);
       if (b.happy <= 0 && dx * dx + dy * dy < 70 * 70) {
-        b.happy = 3; choc += 2; sfx.hug();
+        b.happy = 3; choc += 2; sfx.hug(); mpCandy(2);
         for (let i = 0; i < 6; i++)
           hearts.push({ x: b.x + (Math.random() - .5) * 40, y: gt - 60,
                         vy: -60 - Math.random() * 60, life: 1.4 });
@@ -427,6 +494,9 @@ function update(dt) {
     P.vx = 0;
     if (Math.random() < .15) burstRainbow(P.x - 120 + Math.random() * 240, gt - 80 - Math.random() * 200, 6);
   }
+
+  // friends (multiplayer ghosts) glide toward their latest reported spot
+  updateFriends(dt);
 
   // camera
   const target = P.x - W * .38;
@@ -556,6 +626,9 @@ function draw() {
   for (const b of bears)
     if (b.x > camX - 80 && b.x < camX + W + 80) gummyBear(b, gt);
 
+  // friend princesses from the candy room
+  drawFriends();
+
   // princess!
   drawPrincess(P.x, P.y, P.face, P.step, P.onGround, P.won);
 
@@ -569,7 +642,7 @@ function draw() {
   ctx.font = '22px system-ui';
   for (const h of hearts) {
     ctx.globalAlpha = Math.min(1, h.life);
-    ctx.fillText('💗', h.x - 11, h.y);
+    ctx.fillText(h.e || '💗', h.x - 11, h.y);
   }
   ctx.globalAlpha = 1;
 
@@ -833,7 +906,9 @@ function drawCastle(x, gt) {
 }
 
 /* ---------- the princess ---------- */
-function drawPrincess(x, y, face, step, onGround, winning) {
+// pal: rainbow palette (friends get a rotated one) • ghost: a remote friend, not Emma
+function drawPrincess(x, y, face, step, onGround, winning, pal, ghost) {
+  pal = pal || RAINBOW;
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(face, 1);
@@ -846,7 +921,7 @@ function drawPrincess(x, y, face, step, onGround, winning) {
   ctx.save();
   ctx.translate(0, -118);
   for (let i = 0; i < 6; i++) {
-    ctx.strokeStyle = RAINBOW[i]; ctx.lineWidth = 9; ctx.lineCap = 'round';
+    ctx.strokeStyle = pal[i]; ctx.lineWidth = 9; ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(-3, -12 + i * 3);
     ctx.quadraticCurveTo(-26 - i * 3, 2 + i * 7 + hairFlow,
@@ -865,7 +940,7 @@ function drawPrincess(x, y, face, step, onGround, winning) {
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 28); ctx.stroke();
     // rainbow high heel
     const hg = ctx.createLinearGradient(-8, 28, 14, 34);
-    RAINBOW.forEach((c, i) => hg.addColorStop(i / 5, c));
+    pal.forEach((c, i) => hg.addColorStop(i / 5, c));
     ctx.fillStyle = hg;
     ctx.beginPath();
     ctx.moveTo(-6, 26); ctx.lineTo(12, 26); ctx.lineTo(14, 32);
@@ -885,13 +960,13 @@ function drawPrincess(x, y, face, step, onGround, winning) {
   ctx.closePath();
   ctx.save(); ctx.clip();
   for (let i = 0; i < 6; i++) {
-    ctx.fillStyle = RAINBOW[i];
+    ctx.fillStyle = pal[i];
     ctx.fillRect(-34, 12 + i * 7.4, 68, 7.6);
   }
   ctx.restore();
   ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 2; ctx.stroke();
   // bodice
-  ctx.fillStyle = RAINBOW[0];
+  ctx.fillStyle = pal[0];
   roundRect(-9, -2, 18, 16, 5); ctx.fill();
   ctx.restore();
 
@@ -913,7 +988,7 @@ function drawPrincess(x, y, face, step, onGround, winning) {
   ctx.beginPath(); ctx.arc(0, -118, 15, 0, 7); ctx.stroke();
   // hair top — bold rainbow cap over the head
   for (let i = 0; i < 6; i++) {
-    ctx.strokeStyle = RAINBOW[i]; ctx.lineWidth = 6; ctx.lineCap = 'round';
+    ctx.strokeStyle = pal[i]; ctx.lineWidth = 6; ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.arc(0, -118, 20 - i * 2, Math.PI * 1.05, Math.PI * 1.93);
     ctx.stroke();
@@ -948,8 +1023,8 @@ function drawPrincess(x, y, face, step, onGround, winning) {
   ctx.beginPath(); ctx.arc(0, -6, 3, 0, 7); ctx.fill();
   ctx.restore();
 
-  // sparkle trail when moving fast
-  if (Math.abs(P.vx) > 200 || !onGround) {
+  // sparkle trail when moving fast (Emma only — friends report no velocity)
+  if (!ghost && (Math.abs(P.vx) > 200 || !onGround)) {
     ctx.fillStyle = 'rgba(255,255,255,.8)';
     for (let i = 0; i < 2; i++) {
       const sx = -20 - Math.random() * 14, sy = -20 - Math.random() * 80;
@@ -1077,6 +1152,308 @@ function startLevel() {
   sliderEl.classList.add('hidden');
   overlay.classList.add('hidden');
   running = true;
+}
+
+/* ============================================================
+   Family multiplayer — PeerJS/WebRTC star: the room maker (host)
+   relays everyone's princess to everyone at ~10 Hz. No accounts,
+   no server of ours; private 4-letter room codes only.
+   If anything fails, solo play just continues.
+   ============================================================ */
+const MP_NAMES = [['🍭','Lolli'],['🍫','Choco'],['🍓','Berry'],['🌿','Minty'],
+                  ['🧁','Sprinkle'],['🐻','Gummy'],['🍬','Taffy'],['🍪','Cookie']];
+const MP_EMOJI = ['💗','🎉','👋'];
+const CODE_AB = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';   // no 0/O/1/I/L lookalikes
+const mp = { on:false, isHost:false, peer:null, conns:[], code:'', name:null,
+             slot:0, roster:{}, roomCandy:0, sendT:null, bcastT:null };
+{
+  const savedName = localStorage.getItem('emmabug-mp-name');
+  if (savedName !== null) mp.name = +savedName;
+}
+let mpMsg = '';
+
+function peerId(code) { return 'emmabug-candy-room-' + code; }
+
+function loadPeerJS() {
+  return new Promise((res, rej) => {
+    if (window.Peer) return res();
+    const s = document.createElement('script');
+    s.src = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
+    s.onload = res;
+    s.onerror = () => rej(new Error('offline'));
+    document.head.appendChild(s);
+  });
+}
+
+/* ----- host: make a room ----- */
+async function mpHost() {
+  mpStatus('Opening a candy room… 🍬');
+  try { await loadPeerJS(); } catch (e) { return mpStatus('Playing together needs internet! 📶'); }
+  let code = '';
+  for (let i = 0; i < 4; i++) code += CODE_AB[Math.floor(Math.random() * CODE_AB.length)];
+  const peer = new Peer(peerId(code));
+  mp.peer = peer; mp.isHost = true; mp.code = code; mp.slot = 0;
+  peer.on('open', () => { mpStart(); });
+  peer.on('error', err => {
+    if (err.type === 'unavailable-id') { try { peer.destroy(); } catch (e) {} mpHost(); }
+    else mpFail();
+  });
+  peer.on('connection', conn => {
+    if (mp.conns.length >= 4) {   // host + 4 guests = 5 players, kindly full
+      conn.on('open', () => { conn.send({ t: 'full' }); setTimeout(() => { try { conn.close(); } catch (e) {} }, 400); });
+      return;
+    }
+    let slot = 1;
+    while (mp.conns.some(c => c._slot === slot)) slot++;
+    conn._slot = slot;
+    conn.on('open', () => { mp.conns.push(conn); conn.send({ t: 'welcome', slot }); renderMp(); });
+    conn.on('data', d => hostData(conn, d));
+    conn.on('close', () => dropGuest(conn));
+    conn.on('error', () => dropGuest(conn));
+  });
+}
+function dropGuest(conn) {
+  mp.conns = mp.conns.filter(c => c !== conn);
+  delete mp.roster[conn._slot];
+  renderMp();
+}
+function hostData(conn, d) {
+  if (d.t === 's') mp.roster[conn._slot] = Object.assign(mp.roster[conn._slot] || {}, d.s);
+  else if (d.t === 'c') mp.roomCandy += d.n;
+  else if (d.t === 'e') mpShowReaction(conn._slot, d.i);
+}
+
+/* ----- guest: join a room ----- */
+async function mpJoin(code) {
+  mpStatus('Looking for room ' + code + '… 🔍');
+  try { await loadPeerJS(); } catch (e) { return mpStatus('Playing together needs internet! 📶'); }
+  const peer = new Peer();
+  mp.peer = peer; mp.isHost = false; mp.code = code;
+  peer.on('error', err => {
+    if (err.type === 'peer-unavailable')
+      mpStatus('Hmm, no room called ' + code + '. Check the secret code! 🤔');
+    else mpFail();
+  });
+  peer.on('open', () => {
+    const conn = peer.connect(peerId(code), { serialization: 'json' });
+    mp.conns = [conn];
+    conn.on('data', d => guestData(d));
+    conn.on('close', () => { if (mp.on) mpStop('Your friends closed the room 💗 You can keep playing!'); });
+    conn.on('error', () => { if (mp.on) mpStop(); else mpFail(); });
+  });
+}
+function guestData(d) {
+  if (d.t === 'welcome') { mp.slot = d.slot; mpStart(); }
+  else if (d.t === 'full') mpStatus('That room is already full of friends! 💗 Ask them to make a new one!');
+  else if (d.t === 'r') {
+    for (const k in d.r)
+      if (+k !== mp.slot) mp.roster[k] = Object.assign(mp.roster[k] || {}, d.r[k]);
+    for (const k in mp.roster) if (!(k in d.r)) delete mp.roster[k];
+    mp.roomCandy = d.rc;
+    syncRoomPill();
+  }
+  else if (d.t === 'e') mpShowReaction(d.slot, d.i);
+}
+
+/* ----- shared lifecycle ----- */
+function mpStart() {
+  mp.on = true; mp.roster = {}; mp.roomCandy = 0; mpMsg = '';
+  mp.sendT = setInterval(mpSendState, 100);
+  if (mp.isHost) mp.bcastT = setInterval(mpBroadcast, 100);
+  document.getElementById('roomPill').classList.remove('hidden');
+  for (let i = 0; i < 3; i++) document.getElementById('rx' + i).classList.remove('hidden');
+  syncRoomPill();
+  sfx.win();
+  burstRainbow(P.x, P.y - 80, 20);
+  renderMp();
+}
+function mpStop(msg) {
+  mp.on = false;
+  clearInterval(mp.sendT); clearInterval(mp.bcastT);
+  try { if (mp.peer) mp.peer.destroy(); } catch (e) {}
+  mp.peer = null; mp.conns = []; mp.roster = {}; mp.roomCandy = 0; mp.code = '';
+  document.getElementById('roomPill').classList.add('hidden');
+  for (let i = 0; i < 3; i++) document.getElementById('rx' + i).classList.add('hidden');
+  if (msg) mpStatus(msg); else renderMp();
+}
+function mpFail() {
+  try { if (mp.peer) mp.peer.destroy(); } catch (e) {}
+  mp.peer = null;
+  mpStatus("The candy phone isn't connecting 📞 Try again in a minute!");
+}
+window.addEventListener('beforeunload', () => { try { if (mp.peer) mp.peer.destroy(); } catch (e) {} });
+
+/* ----- state sync ----- */
+function ownState() {
+  return { x: Math.round(P.x), y: Math.round(P.y), f: P.face, g: P.onGround ? 1 : 0,
+           l: levelIdx, n: mp.name, s: Math.round(P.step * 10) };
+}
+function mpSendState() {
+  if (!mp.on) return;
+  if (mp.isHost) mp.roster[0] = Object.assign(mp.roster[0] || {}, ownState());
+  else if (mp.conns[0] && mp.conns[0].open) mp.conns[0].send({ t: 's', s: ownState() });
+}
+function mpBroadcast() {
+  if (!mp.on) return;
+  const r = {};
+  for (const k in mp.roster) {
+    const f = mp.roster[k];
+    r[k] = { x: f.x, y: f.y, f: f.f, g: f.g, l: f.l, n: f.n, s: f.s };
+  }
+  const msg = { t: 'r', r, rc: mp.roomCandy };
+  for (const c of mp.conns) if (c.open) c.send(msg);
+  syncRoomPill();
+}
+function mpCandy(n) {
+  if (!mp.on) return;
+  if (mp.isHost) mp.roomCandy += n;
+  else if (mp.conns[0] && mp.conns[0].open) mp.conns[0].send({ t: 'c', n });
+}
+function syncRoomPill() {
+  document.getElementById('roomPill').textContent = '🏰 ' + mp.code + '  🍬 ' + mp.roomCandy;
+}
+
+/* ----- friends: interpolation + drawing ----- */
+function updateFriends(dt) {
+  if (!mp.on) return;
+  for (const k in mp.roster) {
+    if (+k === mp.slot) continue;
+    const f = mp.roster[k];
+    if (f.x === undefined) continue;
+    if (f.dx === undefined) { f.dx = f.x; f.dy = f.y; f.ds = 0; }
+    const moving = Math.abs(f.x - f.dx) > 3;
+    f.dx += (f.x - f.dx) * Math.min(1, dt * 10);
+    f.dy += (f.y - f.dy) * Math.min(1, dt * 10);
+    f.ds = f.s !== undefined ? f.s / 10 : (f.ds + (moving ? dt * 10 : 0));
+  }
+}
+function palFor(slot) {
+  const k = (slot * 2) % 6;
+  return RAINBOW.slice(k).concat(RAINBOW.slice(0, k));
+}
+function drawFriends() {
+  if (!mp.on) return;
+  for (const k in mp.roster) {
+    if (+k === mp.slot) continue;
+    const f = mp.roster[k];
+    if (f.dx === undefined || f.l !== levelIdx) continue;
+    if (f.dx < camX - 120 || f.dx > camX + W + 120) continue;
+    ctx.save();
+    ctx.globalAlpha = .85;
+    drawPrincess(f.dx, f.dy, f.f || 1, f.ds || 0, !!f.g, false, palFor(+k), true);
+    ctx.restore();
+    if (f.n != null && MP_NAMES[f.n]) {
+      const label = MP_NAMES[f.n][0] + ' ' + MP_NAMES[f.n][1];
+      ctx.font = '700 14px system-ui';
+      const tw = ctx.measureText(label).width;
+      ctx.fillStyle = 'rgba(255,255,255,.8)';
+      roundRect(f.dx - tw / 2 - 8, f.dy - 166, tw + 16, 22, 11); ctx.fill();
+      ctx.fillStyle = '#d63384';
+      ctx.fillText(label, f.dx - tw / 2, f.dy - 150);
+    }
+  }
+}
+
+/* ----- emoji reactions ----- */
+function mpReact(i) {
+  if (!mp.on) return;
+  mpShowReaction(mp.slot, i);
+  if (mp.isHost) { for (const c of mp.conns) if (c.open) c.send({ t: 'e', slot: 0, i }); }
+  else if (mp.conns[0] && mp.conns[0].open) mp.conns[0].send({ t: 'e', i });
+}
+function mpShowReaction(slot, i) {
+  const own = slot === mp.slot;
+  const f = own ? { dx: P.x, dy: P.y } : mp.roster[slot];
+  if (f && f.dx !== undefined) {
+    for (let k = 0; k < 5; k++)
+      hearts.push({ x: f.dx + (Math.random() - .5) * 50, y: f.dy - 120 - Math.random() * 40,
+                    vy: -60 - Math.random() * 50, life: 1.5, e: MP_EMOJI[i] });
+  }
+  sfx.hug();
+  // host relays a guest's reaction to the other guests
+  if (mp.isHost && !own)
+    for (const c of mp.conns) if (c.open && c._slot !== slot) c.send({ t: 'e', slot, i });
+}
+for (let i = 0; i < 3; i++)
+  document.getElementById('rx' + i).addEventListener('pointerdown', e => { e.preventDefault(); mpReact(i); });
+
+/* ----- room panel UI ----- */
+const mpOverlay = document.getElementById('mpOverlay');
+const mpBox = document.getElementById('mpBox');
+document.getElementById('mpBtn').addEventListener('click', () => { ac(); mpMsg = ''; mpOpen(); });
+function mpOpen() { renderMp(); mpOverlay.classList.remove('hidden'); }
+function mpClose() { mpOverlay.classList.add('hidden'); }
+function mpStatus(m) { mpMsg = m; mpOpen(); }
+
+const roomParam = ((new URLSearchParams(location.search)).get('room') || '').toUpperCase();
+
+function renderMp() {
+  const prevCode = (((document.getElementById('codeIn') || {}).value || roomParam)
+                    .toUpperCase().replace(/[^A-Z2-9]/g, '')).slice(0, 4);
+  let h = '<button class="mpX" id="mpXBtn">❌</button>';
+  if (mp.on) {
+    const count = mp.isHost ? mp.conns.length + 1 : Object.keys(mp.roster).length + 1;
+    h += '<h1>🏰 Your Candy Room</h1>' +
+         '<div class="bigCode">' + mp.code + '</div>' +
+         '<p>Tell your family the secret code!<br>Friends here: <b>' + count + ' / 5</b></p>' +
+         '<button class="mpBtn2" id="mpShare">📨 Share an invite</button>' +
+         '<button class="mpBtn2" id="mpLeave">🚪 Leave the room</button>';
+  } else {
+    h += '<h1>👨‍👩‍👧 Play Together!</h1>';
+    if (mpMsg) h += '<p class="mpMsg">' + mpMsg + '</p>';
+    h += '<p>Pick your candy name:</p><div id="nameGrid">' +
+      MP_NAMES.map((n, i) =>
+        '<button class="nameBtn' + (mp.name === i ? ' sel' : '') + '" data-i="' + i + '">' +
+        n[0] + '<br>' + n[1] + '</button>').join('') +
+      '</div>' +
+      '<button class="mpBtn2" id="mpMake">🏠 Make a room</button>' +
+      '<div class="joinRow"><input id="codeIn" maxlength="4" placeholder="CODE" ' +
+      'autocomplete="off" autocapitalize="characters" value="' + prevCode + '">' +
+      '<button class="mpBtn2" id="mpGo">🔑 Join</button></div>';
+  }
+  mpBox.innerHTML = h;
+  document.getElementById('mpXBtn').addEventListener('click', mpClose);
+  if (mp.on) {
+    document.getElementById('mpShare').addEventListener('click', mpShare);
+    document.getElementById('mpLeave').addEventListener('click', () => mpStop());
+  } else {
+    for (const b of mpBox.querySelectorAll('.nameBtn'))
+      b.addEventListener('click', () => {
+        mp.name = +b.dataset.i;
+        localStorage.setItem('emmabug-mp-name', mp.name);
+        sfx.collect();
+        renderMp();
+      });
+    document.getElementById('mpMake').addEventListener('click', () => {
+      ac();
+      if (mp.name === null) return mpStatus('Pick your candy name first! 🍭');
+      mpHost();
+    });
+    const codeIn = document.getElementById('codeIn');
+    codeIn.addEventListener('input', () => { codeIn.value = codeIn.value.toUpperCase(); });
+    document.getElementById('mpGo').addEventListener('click', () => {
+      ac();
+      if (mp.name === null) return mpStatus('Pick your candy name first! 🍭');
+      const code = codeIn.value.trim().toUpperCase();
+      if (code.length !== 4) return mpStatus('The secret code has 4 letters! ✏️');
+      mpJoin(code);
+    });
+  }
+}
+function mpShare() {
+  const url = location.origin + location.pathname + '?room=' + mp.code;
+  const text = 'Come play Candy Kingdom with me! 🍭 Room code: ' + mp.code;
+  if (navigator.share) navigator.share({ title: "Emmabug's Candy Kingdom", text, url }).catch(() => {});
+  else if (navigator.clipboard) {
+    navigator.clipboard.writeText(text + ' ' + url).catch(() => {});
+    mpMsg = 'Invite copied! Paste it to your family 💌';
+    renderMp();
+  }
+}
+// arriving via an invite link? open the panel with the code filled in
+if (/^[A-Z2-9]{4}$/.test(roomParam)) {
+  mpMsg = 'Pick your candy name, then tap Join!';
+  setTimeout(mpOpen, 500);
 }
 
 /* ---------- main loop ---------- */
