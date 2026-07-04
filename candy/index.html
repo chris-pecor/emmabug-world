@@ -25,8 +25,11 @@
     box-shadow:0 3px 10px rgba(214,51,132,.25); z-index:10; user-select:none;
   }
   .rbtn:active { transform:scale(.92); }
+  .rbtn.pulse { animation:pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.16); box-shadow:0 0 16px #ff8fc8;} }
   #muteBtn { top:calc(12px + env(safe-area-inset-top)); right:12px; }
   #mpBtn { top:calc(12px + env(safe-area-inset-top)); right:82px; }
+  #petBtn { top:calc(12px + env(safe-area-inset-top)); right:152px; }
 
   .rxn {
     position:fixed; right:calc(124px + env(safe-area-inset-right));
@@ -43,19 +46,28 @@
   #rx2 { bottom:calc(144px + env(safe-area-inset-bottom)); }
   #roomPill.hidden { display:none; }
 
-  #mpOverlay {
+  #mpOverlay, #petOverlay {
     position:fixed; inset:0; z-index:30; display:flex; align-items:center; justify-content:center;
     background:rgba(180,120,220,.45); backdrop-filter:blur(3px); padding:16px;
   }
-  #mpOverlay.hidden { display:none; }
-  #mpBox {
+  #mpOverlay.hidden, #petOverlay.hidden { display:none; }
+  #mpBox, #petBox {
     background:linear-gradient(160deg,#fff0fa,#ffe3f2 55%,#e9d5ff);
     border:4px solid #ff8fc8; border-radius:26px; text-align:center;
     width:min(430px,94vw); max-height:88vh; overflow-y:auto;
     padding:22px 18px; box-shadow:0 10px 40px rgba(214,51,132,.35); position:relative;
   }
-  #mpBox h1 { font-size:clamp(24px,5.5vw,32px); color:#d63384; margin:0 26px 10px; text-shadow:0 2px 0 #fff; }
-  #mpBox p { font-size:clamp(15px,3.8vw,18px); color:#8b3a72; margin-bottom:12px; line-height:1.4; }
+  #mpBox h1, #petBox h1 { font-size:clamp(24px,5.5vw,32px); color:#d63384; margin:0 26px 10px; text-shadow:0 2px 0 #fff; }
+  #mpBox p, #petBox p { font-size:clamp(15px,3.8vw,18px); color:#8b3a72; margin-bottom:12px; line-height:1.4; }
+  .petCell { font-size:26px; line-height:1.25; }
+  #lvlRow { display:flex; justify-content:center; gap:10px; margin-bottom:14px; }
+  #lvlRow.hidden { display:none; }
+  .lvlBtn {
+    width:52px; height:52px; border-radius:50%; border:3px solid #ffc2e0; background:#fff;
+    font-size:20px; font-weight:900; color:#d63384; cursor:pointer;
+  }
+  .lvlBtn.sel { border-color:#f0359b; background:#ffd6ec; box-shadow:0 0 10px #ff8fc8; }
+  .lvlBtn.lock { opacity:.45; }
   .mpMsg { font-weight:800; color:#c2187a !important; }
   .mpX {
     position:absolute; top:10px; right:10px; width:44px; height:44px; border-radius:50%;
@@ -158,15 +170,18 @@
 
 <div id="hud">
   <div class="pill" id="chocPill">🍫 0</div>
-  <div class="pill" id="levelPill">⭐ 1</div>
-  <div class="pill hidden" id="roomPill">🏰</div>
+  <div class="pill" id="starPill">🌟 0</div>
+  <div class="pill" id="levelPill">🏰 1</div>
+  <div class="pill hidden" id="roomPill">🏯</div>
 </div>
 <div class="rbtn" id="muteBtn">🔊</div>
 <div class="rbtn" id="mpBtn">👨‍👩‍👧</div>
+<div class="rbtn" id="petBtn">🐾</div>
 <div class="rxn hidden" id="rx0">💗</div>
 <div class="rxn hidden" id="rx1">🎉</div>
 <div class="rxn hidden" id="rx2">👋</div>
 <div id="mpOverlay" class="hidden"><div id="mpBox"></div></div>
+<div id="petOverlay" class="hidden"><div id="petBox"></div></div>
 
 <div class="padBtn" id="leftBtn">◀</div>
 <div class="padBtn" id="rightBtn">▶</div>
@@ -175,25 +190,28 @@
 <div id="overlay">
   <div id="panel">
     <h1 id="panelTitle">🍭 Emmabug's Candy Kingdom 🍭</h1>
-    <p id="panelText">Help the Princess run and jump through Candy Land!<br>
-    Collect 🍫 and 🍭, hug the gummy bears,<br>
-    and slide the candy tiles to open each Candy Castle!</p>
+    <p id="panelText">Run and bounce through 4 candy lands!<br>
+    Do quests for gummy bears to hatch pet eggs 🥚<br>
+    and find the 3 hidden stars in every land! 🌟</p>
+    <div id="lvlRow"></div>
     <div id="slider" class="hidden">
       <div id="goal"></div>
       <div id="grid"></div>
     </div>
     <button id="bigBtn">▶ Play!</button>
-    <div id="ver">v6.2</div>
+    <div id="ver">v7.0</div>
   </div>
 </div>
 
 <script>
 'use strict';
 /* ============================================================
-   Emmabug's Candy Kingdom — v6.2
+   Emmabug's Candy Kingdom — v7.0
    2D candy side-scroller. Mobile-first, no fail states.
-   Two levels; each castle door opens with a sliding-tile puzzle.
-   Giant gumdrop trampolines give a super bounce.
+   Four lands; each castle door opens with a sliding-tile puzzle.
+   Gumdrop trampolines, moving platforms, bop-able grumpy gumballs,
+   hidden stars, gummy-bear quests and hatchable pets that follow you.
+   Progress (candy, stars, eggs, pets, unlocked lands) saves locally.
    Family multiplayer: private room codes, up to 5 players,
    preset candy names, emoji reactions, shared candy count.
    ============================================================ */
@@ -239,12 +257,17 @@ const sfx = {
   hug()     { tone(520, .2, 'triangle', .14); tone(780, .25, 'triangle', .12, .1); },
   bounce()  { tone(200, .2, 'sine', .18); tone(330, .18, 'sine', .12, .08); },
   spring()  { tone(160, .1, 'sine', .2); tone(330, .12, 'triangle', .16, .05); tone(660, .2, 'triangle', .14, .11); },
+  bop()     { tone(300, .08, 'square', .12); tone(150, .16, 'sine', .18, .04); },
+  squeak()  { tone(880, .08, 'square', .05); tone(660, .07, 'square', .05, .07); },
+  star()    { [784, 988, 1175, 1568].forEach((f, i) => tone(f, .14, 'sine', .15, i * .07)); },
+  hatch()   { tone(392, .3, 'sine', .12); tone(494, .3, 'sine', .12, .25); tone(587, .4, 'sine', .12, .5); },
   win()     { [523,659,784,1047,1319,1568].forEach((f,i)=>tone(f,.35,'triangle',.16,i*.13)); }
 };
 const muteBtn = document.getElementById('muteBtn');
 muteBtn.addEventListener('click', () => {
   muted = !muted;
   muteBtn.textContent = muted ? '🔇' : '🔊';
+  saveGame();
 });
 
 /* ---------- input ---------- */
@@ -297,7 +320,8 @@ const LEVELS = [
       [4550, 130, 200], [4720, 120, 240], [5050, 140, 150],
       [5380, 260, 170], [5600, 110, 220], [5900, 130, 150],
       [6200, 250, 160], [6500, 140, 190], [6900, 260, 150]
-    ]
+    ],
+    stars: [[1075, 350], [3335, 380], [6280, 360]]
   },
   {
     name: 'Berry Starlight', grade: 6, end: 8200, seed: 60214, night: true,
@@ -315,18 +339,78 @@ const LEVELS = [
       [5100, 270, 130], [5400, 150, 140], [5750, 130, 130],
       [6050, 260, 130], [6350, 150, 140], [6690, 130, 130],
       [7000, 240, 140], [7350, 160, 150], [7700, 270, 140]
-    ]
+    ],
+    stars: [[1320, 380], [3565, 370], [7070, 380]]
+  },
+  {
+    // floats may carry [x, up, w, amp, speed] — amp/speed make a MOVING platform
+    name: 'Chocolate River', end: 8800, seed: 41207, night: false,
+    sky: ['#ffe0b3','#ffe9d1','#f5cfae'], hills: ['#d9a36e','#c98d5e'],
+    grounds: [
+      [-400, 1200], [1400, 700], [2300, 750], [3300, 800],
+      [4500, 650], [5400, 750], [6500, 650], [7400, 1800]
+    ],
+    floats: [
+      [700, 130, 160], [1000, 110, 150, 200, 1.0],
+      [1650, 240, 150], [1950, 130, 160], [2400, 250, 150], [2700, 130, 160],
+      [3400, 140, 150], [3700, 260, 140], [4200, 120, 140, 140, 1.2],
+      [4650, 240, 150], [4950, 130, 150],
+      [5500, 250, 150], [5800, 130, 150],
+      [6600, 250, 140], [7150, 120, 140, 110, 1.3],
+      [7600, 240, 150], [8000, 130, 160], [8350, 260, 150]
+    ],
+    stars: [[1725, 360], [4720, 360], [8425, 380]]
+  },
+  {
+    name: 'Rainbow Peaks', end: 9000, seed: 77031, night: true,
+    sky: ['#8fb7ff','#d9c9ff','#ffd1f2'], hills: ['#b3a1f0','#9c86e0'],
+    grounds: [
+      [-400, 1100], [1250, 650], [2150, 700], [3100, 650],
+      [4000, 700], [4950, 650], [5850, 700], [6800, 2400]
+    ],
+    floats: [
+      [600, 130, 150], [900, 250, 140], [1200, 370, 130],
+      [1700, 140, 150], [2000, 260, 140], [2450, 150, 150],
+      [2750, 270, 130], [3050, 390, 120],
+      [3400, 140, 150], [3700, 260, 140], [4050, 150, 150, 120, 1.3],
+      [4400, 270, 130], [4700, 150, 150],
+      [5050, 270, 140], [5350, 390, 130],
+      [5700, 150, 150], [6000, 270, 140], [6350, 150, 150, 140, 1.1],
+      [6900, 140, 150], [7200, 260, 140], [7500, 380, 130],
+      [7900, 150, 150], [8200, 270, 140], [8550, 150, 150]
+    ],
+    stars: [[1265, 480], [3110, 500], [7565, 490]]
   }
 ];
 let levelIdx = 0, LEVEL_END = LEVELS[0].end;
 let platforms = [], candies = [], bears = [], decor = [], particles = [], hearts = [], springs = [];
+let grumps = [], starItems = [];
+
+/* ---------- persistent progress ---------- */
+let stars = 0, eggs = 0, pets = [], activePet = -1, maxLevel = 0, starsGot = {};
+const SAVE_KEY = 'emmabug-candy-progress';
+function saveGame() {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(
+      { choc, stars, eggs, pets, activePet, maxLevel, starsGot, muted }));
+  } catch (e) {}
+}
+function loadGame() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+    if (!s) return;
+    choc = s.choc || 0; stars = s.stars || 0; eggs = s.eggs || 0;
+    pets = s.pets || []; activePet = (s.activePet !== undefined) ? s.activePet : -1;
+    maxLevel = s.maxLevel || 0; starsGot = s.starsGot || {}; muted = !!s.muted;
+  } catch (e) {}
+}
 
 function rng(seed) { let s = seed;
   return () => (s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff; }
 
 function buildLevel() {
   platforms = []; candies = []; bears = []; decor = [];
-  particles = []; hearts = []; springs = [];
+  particles = []; hearts = []; springs = []; grumps = []; starItems = [];
   const L = LEVELS[levelIdx];
   LEVEL_END = L.end;
   const r = rng(L.seed);
@@ -334,13 +418,19 @@ function buildLevel() {
   for (const [x, w] of L.grounds)
     platforms.push({ x, w, y: 0, h: 999, type: 'ground' });
 
-  for (const [x, up, w] of L.floats)
-    platforms.push({ x, w, y: up, h: 26, type: 'licorice' });
+  for (const [x, up, w, amp, sp] of L.floats)
+    platforms.push({ x, w, y: up, h: 26, type: 'licorice',
+                     x0: x, prevX: x, amp: amp || 0, sp: sp || 0, ph: x % 7 });
+
+  // hidden stars (remembered forever once found)
+  starItems = (L.stars || []).map(([x, up], i) =>
+    ({ x, up, i, got: !!(starsGot[levelIdx] && starsGot[levelIdx][i]) }));
 
   // chocolates: rows over ground and on platforms
   const chocAt = (x, up) => candies.push({ x, up, kind: 'choc', got: false, bob: r() * 6 });
   const lolliAt = (x, up) => candies.push({ x, up, kind: 'lolli', got: false, bob: r() * 6 });
-  for (const [x, up, w] of L.floats) {
+  for (const [x, up, w, amp] of L.floats) {
+    if (amp) continue;   // no candy floating beside a moving platform
     const n = Math.max(1, Math.floor(w / 90));
     for (let i = 0; i < n; i++) chocAt(x + w * (i + .5) / n, up + 55);
   }
@@ -355,9 +445,23 @@ function buildLevel() {
   for (const [gx, gw] of L.grounds) {
     if (gw < 500) continue;
     const x = gx + gw / 2 + (r() - .5) * gw * .3;
-    bears.push({ x, dir: bi % 2 ? -1 : 1, col: bearCols[bi % bearCols.length],
-                 happy: 0, home: x, range: Math.min(gw * .35, 130 + r() * 80), step: 0 });
+    const b = { x, dir: bi % 2 ? -1 : 1, col: bearCols[bi % bearCols.length],
+                happy: 0, home: x, range: Math.min(gw * .35, 130 + r() * 80), step: 0 };
+    // some bears have a quest: bring candies, get a pet egg!
+    if (bi === 0 || bi === 2)
+      b.quest = { need: 6 + levelIdx * 4 + bi, done: false };
+    bears.push(b);
     bi++;
+  }
+
+  // grumpy gumballs — bop them from above for candy!
+  const grumpCols = ['#ff5f7e', '#b56cff', '#3aa7ff', '#ffb703'];
+  let gi = 0;
+  for (const [gx, gw] of L.grounds) {
+    if (gx < 0 || gw < 550 || r() > .55) continue;
+    const x = gx + gw * (.25 + r() * .5);
+    grumps.push({ x, home: x, dir: r() < .5 ? 1 : -1, range: 90 + r() * 60,
+                  col: grumpCols[gi++ % 4], sq: 0, cool: 0 });
   }
 
   // background decorations
@@ -396,6 +500,14 @@ function update(dt) {
   time += dt;
   const gt = groundTop();
 
+  // moving platforms drift; whoever stands on one rides along
+  for (const pl of platforms) {
+    if (!pl.amp) continue;
+    pl.prevX = pl.x;
+    pl.x = pl.x0 + Math.sin(time * pl.sp + pl.ph) * pl.amp;
+    if (P.standPl === pl && P.onGround) P.x += pl.x - pl.prevX;
+  }
+
   if (!P.won) {
     // run
     const want = (input.right ? 1 : 0) - (input.left ? 1 : 0);
@@ -427,13 +539,51 @@ function update(dt) {
     P.x = Math.max(-350, Math.min(LEVEL_END + 400, P.x));
 
     // land on platforms (one-way, from above)
-    P.onGround = false;
+    P.onGround = false; P.standPl = null;
     for (const pl of platforms) {
       const top = platTop(pl);
       if (P.x + P.w / 2 < pl.x || P.x - P.w / 2 > pl.x + pl.w) continue;
       if (P.vy >= 0 && prevBottom <= top + 2 && P.y >= top) {
-        P.y = top; P.vy = 0; P.onGround = true;
+        P.y = top; P.vy = 0; P.onGround = true; P.standPl = pl;
         if (pl.type === 'ground') P.safeX = P.x;
+      }
+    }
+
+    // hidden stars!
+    for (const st of starItems) {
+      if (st.got) continue;
+      const sy = gt - st.up + Math.sin(time * 2 + st.i * 2) * 8;
+      const dx = st.x - P.x, dy = sy - (P.y - P.h * .5);
+      if (dx * dx + dy * dy < 60 * 60) {
+        st.got = true;
+        (starsGot[levelIdx] = starsGot[levelIdx] || [])[st.i] = true;
+        stars++;
+        document.getElementById('starPill').textContent = '🌟 ' + stars;
+        sfx.star();
+        burstRainbow(st.x, sy, 24);
+        saveGame();
+      }
+    }
+
+    // grumpy gumballs — bop from above for candy, bump from the side and they huff
+    for (const g of grumps) {
+      if (g.sq > 0) { g.sq -= dt; continue; }
+      g.cool = Math.max(0, g.cool - dt);
+      g.x += g.dir * 34 * dt;
+      if (Math.abs(g.x - g.home) > g.range) g.dir *= -1;
+      const dx = P.x - g.x;
+      if (P.vy > 150 && Math.abs(dx) < 36 && P.y > gt - 66 && P.y < gt - 22) {
+        g.sq = 14;   // squished! pops back later
+        choc += 3; mpCandy(3);
+        document.getElementById('chocPill').textContent = '🍫 ' + choc;
+        P.vy = -720;
+        sfx.bop();
+        burst(g.x, gt - 30, 10, g.col);
+        burst(g.x, gt - 30, 6, '#fff');
+      } else if (g.cool <= 0 && Math.abs(dx) < 44 && P.y >= gt - 30) {
+        g.cool = 1.2; g.dir = dx > 0 ? -1 : 1;
+        sfx.squeak();
+        hearts.push({ x: g.x, y: gt - 60, vy: -70, life: 1, e: '😤' });
       }
     }
 
@@ -476,10 +626,28 @@ function update(dt) {
       if (b.happy > 0) b.happy -= dt;
       const dx = b.x - P.x, dy = gt - 30 - (P.y - P.h * .5);
       if (b.happy <= 0 && dx * dx + dy * dy < 70 * 70) {
-        b.happy = 3; choc += 2; sfx.hug(); mpCandy(2);
-        for (let i = 0; i < 6; i++)
-          hearts.push({ x: b.x + (Math.random() - .5) * 40, y: gt - 60,
-                        vy: -60 - Math.random() * 60, life: 1.4 });
+        b.happy = 3;
+        if (b.quest && !b.quest.done) {
+          if (choc >= b.quest.need) {
+            // quest complete: trade candies for a pet egg!
+            choc -= b.quest.need; eggs++; b.quest.done = true;
+            sfx.win();
+            hearts.push({ x: b.x, y: gt - 100, vy: -80, life: 1.8, e: '🥚' });
+            for (let i = 0; i < 5; i++)
+              hearts.push({ x: b.x + (Math.random() - .5) * 50, y: gt - 60,
+                            vy: -60 - Math.random() * 60, life: 1.4 });
+            document.getElementById('petBtn').classList.add('pulse');
+            saveGame();
+          } else {
+            sfx.hug();
+            hearts.push({ x: b.x, y: gt - 100, vy: -60, life: 1.4, e: '🍫' });
+          }
+        } else {
+          choc += 2; sfx.hug(); mpCandy(2);
+          for (let i = 0; i < 6; i++)
+            hearts.push({ x: b.x + (Math.random() - .5) * 40, y: gt - 60,
+                          vy: -60 - Math.random() * 60, life: 1.4 });
+        }
         document.getElementById('chocPill').textContent = '🍫 ' + choc;
       }
     }
@@ -495,6 +663,13 @@ function update(dt) {
   } else {
     P.vx = 0;
     if (Math.random() < .15) burstRainbow(P.x - 120 + Math.random() * 240, gt - 80 - Math.random() * 200, 6);
+  }
+
+  // pet follows a little behind, floating pets hover higher
+  if (activePet >= 0 && PETS[activePet]) {
+    const tx = P.x - P.face * 52, ty = P.y - (PETS[activePet][3] ? 110 : 34);
+    petX += (tx - petX) * Math.min(1, dt * 5);
+    petY += (ty - petY) * Math.min(1, dt * 5);
   }
 
   // friends (multiplayer ghosts) glide toward their latest reported spot
@@ -606,11 +781,41 @@ function draw() {
   for (const s of springs)
     if (s.x > camX - 120 && s.x < camX + W + 120) drawSpring(s, gt);
 
+  // grumpy gumballs
+  for (const g of grumps)
+    if (g.x > camX - 80 && g.x < camX + W + 80) drawGrump(g, gt);
+
+  // hidden stars
+  for (const st of starItems) {
+    if (st.x < camX - 80 || st.x > camX + W + 80) continue;
+    const sy = gt - st.up + Math.sin(time * 2 + st.i * 2) * 8;
+    ctx.save();
+    ctx.translate(st.x, sy);
+    if (st.got) {
+      ctx.globalAlpha = .18;
+      ctx.font = '38px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('⭐', 0, 0);
+    } else {
+      const gl = ctx.createRadialGradient(0, 0, 6, 0, 0, 44);
+      gl.addColorStop(0, 'rgba(255,230,110,.6)'); gl.addColorStop(1, 'rgba(255,230,110,0)');
+      ctx.fillStyle = gl;
+      ctx.beginPath(); ctx.arc(0, 0, 44, 0, 7); ctx.fill();
+      ctx.rotate(Math.sin(time * 2.4 + st.i) * .35);
+      ctx.font = '42px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('⭐', 0, 0);
+    }
+    ctx.restore();
+  }
+
   // soft shadows ground the characters
   ctx.fillStyle = 'rgba(150,40,100,.15)';
   for (const b of bears) {
     if (b.x < camX - 80 || b.x > camX + W + 80) continue;
     ctx.beginPath(); ctx.ellipse(b.x, gt + 6, 27, 7, 0, 0, 7); ctx.fill();
+  }
+  for (const g of grumps) {
+    if (g.sq > 0 || g.x < camX - 80 || g.x > camX + W + 80) continue;
+    ctx.beginPath(); ctx.ellipse(g.x, gt + 5, 22, 6, 0, 0, 7); ctx.fill();
   }
   if (P.onGround) {
     ctx.beginPath(); ctx.ellipse(P.x, P.y + 5, 20, 6, 0, 0, 7); ctx.fill();
@@ -624,15 +829,45 @@ function draw() {
     else chocolate(cd.x, cy);
   }
 
-  // gummy bears
-  for (const b of bears)
-    if (b.x > camX - 80 && b.x < camX + W + 80) gummyBear(b, gt);
+  // gummy bears (+ quest bubbles)
+  for (const b of bears) {
+    if (b.x < camX - 80 || b.x > camX + W + 80) continue;
+    gummyBear(b, gt);
+    if (b.quest && !b.quest.done) {
+      const label = '🍫✕' + b.quest.need + ' → 🥚';
+      ctx.font = '700 15px system-ui';
+      const tw = ctx.measureText(label).width;
+      const bx = b.x, by = gt - 118 + Math.sin(time * 3 + b.home) * 3;
+      ctx.fillStyle = 'rgba(255,255,255,.92)';
+      roundRect(bx - tw / 2 - 10, by - 16, tw + 20, 30, 14); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(bx - 6, by + 13); ctx.lineTo(bx + 6, by + 13); ctx.lineTo(bx, by + 22);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#8b3a72';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(label, bx, by);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    }
+  }
 
   // friend princesses from the candy room
   drawFriends();
 
   // princess!
   drawPrincess(P.x, P.y, P.face, P.step, P.onGround, P.won);
+
+  // her pet, trotting along behind
+  if (activePet >= 0 && PETS[activePet]) {
+    const fly = PETS[activePet][3];
+    const bob = Math.sin(time * (fly ? 7 : 9)) * (fly ? 7 : 3);
+    ctx.save();
+    ctx.translate(petX, petY + bob);
+    if (P.face < 0) ctx.scale(-1, 1);
+    ctx.font = '30px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.scale(-1, 1);   // pet emoji face left by default; flip to face travel direction
+    ctx.fillText(PETS[activePet][0], 0, 0);
+    ctx.restore();
+  }
 
   // particles + hearts
   for (const p of particles) {
@@ -808,6 +1043,36 @@ function drawSpring(s, gt) {
   ctx.font = '900 20px system-ui';
   ctx.textAlign = 'center';
   ctx.fillText('★', 0, -20);
+  ctx.restore();
+}
+
+function drawGrump(g, gt) {
+  ctx.save(); ctx.translate(g.x, gt);
+  if (g.sq > 0) {
+    // freshly squished: a fading flat splat, then invisible until it pops back
+    const a = Math.max(0, g.sq - 13);
+    if (a > 0) {
+      ctx.globalAlpha = a;
+      ctx.fillStyle = g.col;
+      ctx.beginPath(); ctx.ellipse(0, -7, 30, 8, 0, 0, 7); ctx.fill();
+    }
+    ctx.restore(); return;
+  }
+  const hop = Math.abs(Math.sin(time * 6 + g.home)) * 3;
+  ctx.translate(0, -hop);
+  ctx.fillStyle = g.col;
+  ctx.beginPath(); ctx.arc(0, -26, 22, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.4)';
+  ctx.beginPath(); ctx.ellipse(-8, -34, 6, 3.5, -.5, 0, 7); ctx.fill();
+  // grumpy little face
+  ctx.fillStyle = '#3d1f38';
+  ctx.beginPath(); ctx.arc(-7 * g.dir, -28, 2.6, 0, 7); ctx.arc(3 * g.dir, -28, 2.6, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#3d1f38'; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-11 * g.dir, -36); ctx.lineTo(-4 * g.dir, -33);
+  ctx.moveTo(7 * g.dir, -34); ctx.lineTo(1 * g.dir, -33);
+  ctx.stroke();
+  ctx.beginPath(); ctx.arc(-2 * g.dir, -17, 4, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke();
   ctx.restore();
 }
 
@@ -1088,6 +1353,7 @@ function showPuzzle() {
   panelTitle.textContent = '🔐 Candy Door Puzzle!';
   panelText.innerHTML = 'Slide the tiles until the numbers march<br>1 → 8, just like the little picture!';
   bigBtn.classList.add('hidden');
+  lvlRowEl.classList.add('hidden');
   gridEl.innerHTML = '';
   for (let v = 1; v <= 8; v++) {
     const b = document.createElement('button');
@@ -1123,6 +1389,8 @@ function slideTile(v) {
 
 function doorOpens() {
   sliderEl.classList.add('hidden');
+  maxLevel = Math.max(maxLevel, Math.min(levelIdx + 1, LEVELS.length - 1));
+  saveGame();
   if (levelIdx < LEVELS.length - 1) {
     panelTitle.textContent = '🎉 The door opens! 🎉';
     panelText.innerHTML = 'You solved it — so smart!<br>Next stop: <b>' + LEVELS[levelIdx + 1].name + '</b> ⭐';
@@ -1130,30 +1398,132 @@ function doorOpens() {
     nextAction = 'next';
   } else {
     panelTitle.textContent = '👑 You did it, Princess! 👑';
-    panelText.innerHTML = 'You opened every candy door and finished Candy Kingdom with <b>🍫 ' + choc +
-      '</b> candies!<br>The whole kingdom is cheering for you! 🎉';
+    panelText.innerHTML = 'You finished all of Candy Kingdom with <b>🍫 ' + choc +
+      '</b> candies and <b>🌟 ' + stars + '</b> stars!<br>The whole kingdom is cheering for you! 🎉';
     bigBtn.textContent = '▶ Play again!';
     nextAction = 'restart';
   }
+  syncLvlRow();
+  lvlRowEl.classList.remove('hidden');
   bigBtn.classList.remove('hidden');
 }
 
 bigBtn.addEventListener('click', () => {
   ac();
   if (nextAction === 'next') levelIdx++;
-  else { levelIdx = 0; choc = 0; }
+  else if (nextAction === 'restart') levelIdx = 0;
   startLevel();
 });
+
+const lvlRowEl = document.getElementById('lvlRow');
+function syncLvlRow() {
+  lvlRowEl.innerHTML = '';
+  LEVELS.forEach((L, i) => {
+    const b = document.createElement('button');
+    b.className = 'lvlBtn' + (i === levelIdx ? ' sel' : '') + (i > maxLevel ? ' lock' : '');
+    b.textContent = i > maxLevel ? '🔒' : (i + 1);
+    b.addEventListener('click', () => {
+      if (i > maxLevel) { sfx.bounce(); return; }
+      ac(); levelIdx = i; startLevel();
+    });
+    lvlRowEl.appendChild(b);
+  });
+}
 
 function startLevel() {
   buildLevel();
   P.x = 80; P.y = groundTop(); P.vx = 0; P.vy = 0; P.won = false;
-  P.safeX = 80; camX = -380;
+  P.safeX = 80; P.standPl = null; camX = -380;
+  petX = P.x; petY = P.y - 40;
   document.getElementById('chocPill').textContent = '🍫 ' + choc;
-  document.getElementById('levelPill').textContent = '⭐ ' + (levelIdx + 1);
+  document.getElementById('starPill').textContent = '🌟 ' + stars;
+  document.getElementById('levelPill').textContent = '🏰 ' + (levelIdx + 1);
   sliderEl.classList.add('hidden');
   overlay.classList.add('hidden');
   running = true;
+}
+
+/* ============================================================
+   Pets! Quest bears pay in eggs; eggs hatch into pet friends.
+   [emoji, name, hatch-weight, flies?]
+   ============================================================ */
+const PETS = [
+  ['🐱', 'Kitty',   .20, 0],
+  ['🐶', 'Puppy',   .20, 0],
+  ['🐰', 'Bunny',   .16, 0],
+  ['🐧', 'Pengy',   .12, 0],
+  ['🐢', 'Shelly',  .11, 0],
+  ['🦋', 'Flutter', .10, 1],
+  ['🦄', 'Sparkle', .07, 0],
+  ['🐉', 'Draggy',  .04, 1],
+];
+let petX = 0, petY = 0;
+let petMsg = '';
+
+const petOverlay = document.getElementById('petOverlay');
+const petBox = document.getElementById('petBox');
+const petBtn = document.getElementById('petBtn');
+petBtn.addEventListener('click', () => {
+  ac(); petMsg = '';
+  petBtn.classList.remove('pulse');
+  renderPets();
+  petOverlay.classList.remove('hidden');
+});
+
+function renderPets() {
+  let h = '<button class="mpX" id="petXBtn">❌</button><h1>🐾 My Pets</h1>';
+  if (petMsg) h += '<p class="mpMsg">' + petMsg + '</p>';
+  h += '<p>🥚 Eggs: <b>' + eggs + '</b></p>';
+  h += eggs > 0
+    ? '<button class="mpBtn2" id="hatchBtn">🥚 Hatch an egg!</button>'
+    : '<p>Bring candies to a gummy bear<br>with a 🍫→🥚 bubble to earn eggs!</p>';
+  h += '<p>Tap a pet to bring it along:</p><div id="nameGrid">' +
+    PETS.map((p, i) => {
+      if (!pets.includes(i)) return '<button class="nameBtn petCell" disabled>❓</button>';
+      return '<button class="nameBtn petCell' + (activePet === i ? ' sel' : '') +
+             '" data-i="' + i + '">' + p[0] + '<br>' + p[1] + '</button>';
+    }).join('') + '</div>';
+  petBox.innerHTML = h;
+  document.getElementById('petXBtn').addEventListener('click', () => petOverlay.classList.add('hidden'));
+  const hb = document.getElementById('hatchBtn');
+  if (hb) hb.addEventListener('click', hatchEgg);
+  for (const b of petBox.querySelectorAll('.nameBtn[data-i]'))
+    b.addEventListener('click', () => {
+      const i = +b.dataset.i;
+      activePet = (activePet === i) ? -1 : i;
+      if (activePet >= 0) { petX = P.x; petY = P.y - 40; sfx.collect(); } else sfx.hug();
+      saveGame();
+      renderPets();
+    });
+}
+
+function hatchEgg() {
+  if (eggs < 1) return;
+  eggs--;
+  sfx.hatch();
+  petMsg = '🥚 crack… crack…';
+  renderPets();
+  setTimeout(() => {
+    let pick;
+    if (pets.length >= PETS.length) {
+      choc += 20;
+      document.getElementById('chocPill').textContent = '🍫 ' + choc;
+      petMsg = 'All pets found! The egg was full of candy: +20 🍫';
+    } else {
+      do {
+        let r = Math.random();
+        pick = PETS.length - 1;
+        for (let i = 0; i < PETS.length; i++) { r -= PETS[i][2]; if (r <= 0) { pick = i; break; } }
+      } while (pets.includes(pick));
+      pets.push(pick);
+      activePet = pick;
+      petX = P.x; petY = P.y - 40;
+      petMsg = '🎉 You hatched ' + PETS[pick][1] + '! ' + PETS[pick][0];
+      sfx.win();
+    }
+    saveGame();
+    renderPets();
+  }, 900);
 }
 
 /* ============================================================
@@ -1290,7 +1660,7 @@ function ownState() {
   // y is sent RELATIVE to the ground line — every device has a different
   // screen height, so absolute pixels would float friends into the sky
   return { x: Math.round(P.x), y: Math.round(P.y - groundTop()), f: P.face, g: P.onGround ? 1 : 0,
-           l: levelIdx, n: mp.name, s: Math.round(P.step * 10) };
+           l: levelIdx, n: mp.name, s: Math.round(P.step * 10), p: activePet };
 }
 function mpSendState() {
   if (!mp.on) return;
@@ -1302,7 +1672,7 @@ function mpBroadcast() {
   const r = {};
   for (const k in mp.roster) {
     const f = mp.roster[k];
-    r[k] = { x: f.x, y: f.y, f: f.f, g: f.g, l: f.l, n: f.n, s: f.s };
+    r[k] = { x: f.x, y: f.y, f: f.f, g: f.g, l: f.l, n: f.n, s: f.s, p: f.p };
   }
   const msg = { t: 'r', r, rc: mp.roomCandy };
   for (const c of mp.conns) if (c.open) c.send(msg);
@@ -1347,6 +1717,13 @@ function drawFriends() {
     ctx.globalAlpha = .85;
     drawPrincess(f.dx, fy, f.f || 1, f.ds || 0, !!f.g, false, palFor(+k), true);
     ctx.restore();
+    if (f.p != null && f.p >= 0 && PETS[f.p]) {
+      ctx.font = '26px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.globalAlpha = .85;
+      ctx.fillText(PETS[f.p][0], f.dx - (f.f || 1) * 50, fy - 32 + Math.sin(time * 8 + f.dx) * 3);
+      ctx.globalAlpha = 1;
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    }
     if (f.n != null && MP_NAMES[f.n]) {
       const label = MP_NAMES[f.n][0] + ' ' + MP_NAMES[f.n][1];
       ctx.font = '700 14px system-ui';
@@ -1467,6 +1844,13 @@ if (/^[A-Z2-9]{4}$/.test(roomParam)) {
 }
 
 /* ---------- main loop ---------- */
+loadGame();
+setInterval(saveGame, 8000);
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveGame(); });
+muteBtn.textContent = muted ? '🔇' : '🔊';
+document.getElementById('chocPill').textContent = '🍫 ' + choc;
+document.getElementById('starPill').textContent = '🌟 ' + stars;
+syncLvlRow();
 buildLevel();
 P.y = 0;
 let last = performance.now();
