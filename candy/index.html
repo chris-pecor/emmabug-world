@@ -22,8 +22,10 @@
     position:fixed; width:58px; height:58px; border-radius:50%;
     border:3px solid #ff8fc8; background:rgba(255,255,255,.88);
     font-size:28px; line-height:1; display:flex; align-items:center; justify-content:center;
-    box-shadow:0 3px 10px rgba(214,51,132,.25); z-index:10; user-select:none;
+    box-shadow:0 3px 10px rgba(214,51,132,.25); z-index:22; user-select:none;
   }
+  /* z 22: above the start/win overlay (20) so rooms can be joined from the
+     start screen; below the mp/pet panels (30) */
   .rbtn:active { transform:scale(.92); }
   .rbtn.pulse { animation:pulse 1s ease-in-out infinite; }
   @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.16); box-shadow:0 0 16px #ff8fc8;} }
@@ -173,14 +175,14 @@
     and find the 3 hidden stars in every land! 🌟</p>
     <div id="lvlRow"></div>
     <button id="bigBtn">▶ Play!</button>
-    <div id="ver">v7.1</div>
+    <div id="ver">v7.2</div>
   </div>
 </div>
 
 <script>
 'use strict';
 /* ============================================================
-   Princess Emma's Candy Kingdom — v7.1
+   Princess Emma's Candy Kingdom — v7.2
    2D candy side-scroller. Mobile-first, no fail states.
    Four lands; reaching each castle triggers a fireworks celebration.
    Gumdrop trampolines, moving platforms, bop-able grumpy gumballs,
@@ -483,20 +485,23 @@ function update(dt) {
   }
 
   if (!P.won) {
-    // run
+    // run (Pengy makes her extra speedy)
     const want = (input.right ? 1 : 0) - (input.left ? 1 : 0);
-    P.vx += (want * MOVE - P.vx) * Math.min(1, dt * 12);
+    const runSpd = MOVE * (hasPow('speedy') ? 1.18 : 1);
+    P.vx += (want * runSpd - P.vx) * Math.min(1, dt * 12);
     if (want) P.face = want;
     if (Math.abs(P.vx) > 20 && P.onGround) P.step += dt * Math.abs(P.vx) * .05;
 
-    // jump (double jump + coyote time = very forgiving)
-    if (P.onGround) { P.jumps = 2; P.coyote = .12; }
+    // jump (double jump + coyote time; Draggy grants a TRIPLE, Bunny jumps higher)
+    const maxJ = hasPow('triple') ? 3 : 2;
+    if (P.onGround) { P.jumps = maxJ; P.coyote = .12; }
     else P.coyote = Math.max(0, P.coyote - dt);
     if (input.jumpPressed) {
       if (P.coyote > 0 || P.jumps > 0) {
-        P.vy = -JUMP_V * (P.coyote > 0 || P.jumps === 2 ? 1 : .85);
+        P.vy = -JUMP_V * (hasPow('highjump') ? 1.16 : 1) *
+               (P.coyote > 0 || P.jumps === maxJ ? 1 : .85);
         if (P.coyote <= 0) P.jumps--;
-        else P.jumps = 1;
+        else P.jumps = maxJ - 1;
         P.coyote = 0; P.onGround = false;
         sfx.jump();
         burst(P.x, P.y, 6, '#fff');
@@ -505,8 +510,12 @@ function update(dt) {
     }
     input.jumpPressed = false;
 
-    // physics
+    // physics (Flutter: hold jump to float gently down)
     P.vy = Math.min(P.vy + GRAV * dt, 1200);
+    if (hasPow('glide') && input.jump && !P.onGround && P.vy > 130) {
+      P.vy = 130;
+      if (Math.random() < .25) burst(P.x + 10, P.y - 60, 1, '#b7f0ff');
+    }
     const prevBottom = P.y;
     P.x += P.vx * dt;
     P.y += P.vy * dt;
@@ -578,19 +587,31 @@ function update(dt) {
       burst(P.x, gt, 12, '#ffd6ec');
     }
 
-    // candy pickups
+    // candy pickups (Kitty pulls nearby treats in, Sparkle doubles lollipops)
     for (const cd of candies) {
       if (cd.got) continue;
+      if (hasPow('magnet')) {
+        const mdx = P.x - cd.x, mdy = (P.y - P.h * .5) - (gt - cd.up);
+        if (mdx * mdx + mdy * mdy < 210 * 210) { cd.x += mdx * dt * 3; cd.up -= mdy * dt * 3; }
+      }
       const cy = gt - cd.up + Math.sin(time * 3 + cd.bob) * 6;
       const dx = cd.x - P.x, dy = cy - (P.y - P.h * .5);
       if (dx * dx + dy * dy < 55 * 55) {
         cd.got = true;
-        if (cd.kind === 'lolli') { choc += 5; sfx.lolli(); burstRainbow(cd.x, cy, 16); }
-        else { choc += 1; sfx.collect(); burst(cd.x, cy, 8, '#8b5a2b'); burst(cd.x, cy, 5, '#ffd6ec'); }
-        mpCandy(cd.kind === 'lolli' ? 5 : 1);
+        const gain = cd.kind === 'lolli' ? (hasPow('sweet') ? 10 : 5) : 1;
+        choc += gain;
+        if (cd.kind === 'lolli') { sfx.lolli(); burstRainbow(cd.x, cy, hasPow('sweet') ? 26 : 16); }
+        else { sfx.collect(); burst(cd.x, cy, 8, '#8b5a2b'); burst(cd.x, cy, 5, '#ffd6ec'); }
+        mpCandy(gain);
         document.getElementById('chocPill').textContent = '🍫 ' + choc;
       }
     }
+
+    // Sparkle leaves a little rainbow behind her
+    if (hasPow('sweet') && P.onGround && Math.abs(P.vx) > 100 && Math.random() < .25)
+      particles.push({ x: P.x - P.face * 20, y: P.y - 10 - Math.random() * 60,
+                       vx: -P.face * 30, vy: -20, g: 30, life: .7,
+                       col: RAINBOW[(Math.random() * 6) | 0], r: 2.5 + Math.random() * 2 });
 
     // gummy bear hugs
     for (const b of bears) {
@@ -602,9 +623,10 @@ function update(dt) {
       if (b.happy <= 0 && dx * dx + dy * dy < 70 * 70) {
         b.happy = 3;
         if (b.quest && !b.quest.done) {
-          if (choc >= b.quest.need) {
+          const need = questNeed(b);   // Shelly negotiates a discount
+          if (choc >= need) {
             // quest complete: trade candies for a pet egg!
-            choc -= b.quest.need; eggs++; b.quest.done = true;
+            choc -= need; eggs++; b.quest.done = true;
             sfx.win();
             hearts.push({ x: b.x, y: gt - 100, vy: -80, life: 1.8, e: '🥚' });
             for (let i = 0; i < 5; i++)
@@ -817,7 +839,7 @@ function draw() {
     if (b.x < camX - 80 || b.x > camX + W + 80) continue;
     gummyBear(b, gt);
     if (b.quest && !b.quest.done) {
-      const label = '🍫✕' + b.quest.need + ' → 🥚';
+      const label = '🍫✕' + questNeed(b) + ' → 🥚';
       ctx.font = '700 15px system-ui';
       const tw = ctx.measureText(label).width;
       const bx = b.x, by = gt - 118 + Math.sin(time * 3 + b.home) * 3;
@@ -844,12 +866,31 @@ function draw() {
     const fly = PETS[activePet][3];
     const bob = Math.sin(time * (fly ? 7 : 9)) * (fly ? 7 : 3);
     ctx.save();
+    ctx.globalAlpha = 1;   // never dim, whatever alpha an earlier pass left behind
     ctx.translate(petX, petY + bob);
+    // soft glow so the pet pops against every background
+    const pgl = ctx.createRadialGradient(0, 0, 4, 0, 0, 26);
+    pgl.addColorStop(0, 'rgba(255,255,255,.75)'); pgl.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = pgl;
+    ctx.beginPath(); ctx.arc(0, 0, 26, 0, 7); ctx.fill();
     if (P.face < 0) ctx.scale(-1, 1);
-    ctx.font = '30px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '32px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.scale(-1, 1);   // pet emoji face left by default; flip to face travel direction
     ctx.fillText(PETS[activePet][0], 0, 0);
     ctx.restore();
+    // Puppy sniffs out the nearest hidden star
+    if (hasPow('finder')) {
+      let best = null;
+      for (const st of starItems)
+        if (!st.got && (!best || Math.abs(st.x - P.x) < Math.abs(best.x - P.x))) best = st;
+      if (best && Math.abs(best.x - P.x) < 1400 && Math.abs(Math.sin(time * 3)) > .3) {
+        ctx.save();
+        ctx.font = '22px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(best.x > P.x + 60 ? '⭐→' : (best.x < P.x - 60 ? '←⭐' : '⭐👇'),
+                     petX, petY - 42 + Math.sin(time * 5) * 4);
+        ctx.restore();
+      }
+    }
   }
 
   // Emma's crown name tag
@@ -1388,15 +1429,21 @@ function startLevel() {
    [emoji, name, hatch-weight, flies?]
    ============================================================ */
 const PETS = [
-  ['🐱', 'Kitty',   .20, 0],
-  ['🐶', 'Puppy',   .20, 0],
-  ['🐰', 'Bunny',   .16, 0],
-  ['🐧', 'Pengy',   .12, 0],
-  ['🐢', 'Shelly',  .11, 0],
-  ['🦋', 'Flutter', .10, 1],
-  ['🦄', 'Sparkle', .07, 0],
-  ['🐉', 'Draggy',  .04, 1],
+  ['🐱', 'Kitty',   .20, 0, 'Candy magnet — treats fly to you!'],
+  ['🐶', 'Puppy',   .20, 0, 'Sniffs out hidden stars!'],
+  ['🐰', 'Bunny',   .16, 0, 'Jumps extra high!'],
+  ['🐧', 'Pengy',   .12, 0, 'Runs super fast!'],
+  ['🐢', 'Shelly',  .11, 0, 'Bear quests cost less!'],
+  ['🦋', 'Flutter', .10, 1, 'Hold JUMP to float down!'],
+  ['🦄', 'Sparkle', .07, 0, 'Lollipops worth DOUBLE!'],
+  ['🐉', 'Draggy',  .04, 1, 'TRIPLE jump!'],
 ];
+// which pet grants which power
+const PW = { magnet: 0, finder: 1, highjump: 2, speedy: 3, discount: 4, glide: 5, sweet: 6, triple: 7 };
+const hasPow = k => activePet === PW[k];
+function questNeed(b) {
+  return hasPow('discount') ? Math.max(1, Math.round(b.quest.need * .75)) : b.quest.need;
+}
 let petX = 0, petY = 0;
 let petMsg = '';
 
@@ -1423,6 +1470,10 @@ function renderPets() {
       return '<button class="nameBtn petCell' + (activePet === i ? ' sel' : '') +
              '" data-i="' + i + '">' + p[0] + '<br>' + p[1] + '</button>';
     }).join('') + '</div>';
+  if (activePet >= 0 && PETS[activePet])
+    h += '<p class="mpMsg">✨ ' + PETS[activePet][1] + ': ' + PETS[activePet][4] + '</p>';
+  else if (pets.length)
+    h += '<p>Every pet has a special power! ✨</p>';
   petBox.innerHTML = h;
   document.getElementById('petXBtn').addEventListener('click', () => petOverlay.classList.add('hidden'));
   const hb = document.getElementById('hatchBtn');
@@ -1458,7 +1509,7 @@ function hatchEgg() {
       pets.push(pick);
       activePet = pick;
       petX = P.x; petY = P.y - 40;
-      petMsg = '🎉 You hatched ' + PETS[pick][1] + '! ' + PETS[pick][0];
+      petMsg = '🎉 You hatched ' + PETS[pick][1] + '! ' + PETS[pick][0] + ' — ' + PETS[pick][4];
       sfx.win();
     }
     saveGame();
@@ -1659,9 +1710,8 @@ function drawFriends() {
     ctx.restore();
     if (f.p != null && f.p >= 0 && PETS[f.p]) {
       ctx.font = '26px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.globalAlpha = .85;
-      ctx.fillText(PETS[f.p][0], f.dx - (f.f || 1) * 50, fy - 32 + Math.sin(time * 8 + f.dx) * 3);
       ctx.globalAlpha = 1;
+      ctx.fillText(PETS[f.p][0], f.dx - (f.f || 1) * 50, fy - 32 + Math.sin(time * 8 + f.dx) * 3);
       ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     }
     if (f.n != null && MP_NAMES[f.n]) {
