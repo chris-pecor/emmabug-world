@@ -7,10 +7,15 @@
 <title>Emmabug's Candy Kingdom</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Emmabug Candy">
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { width:100%; height:100%; overflow:hidden; background:#ffe9f5; overscroll-behavior:none;
-    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
   #c { display:block; width:100%; height:100%; touch-action:none; }
 
   .rbtn {
@@ -38,7 +43,7 @@
     border:4px solid #ff8fc8; background:rgba(255,255,255,.82);
     font-size:36px; display:flex; align-items:center; justify-content:center;
     box-shadow:0 4px 14px rgba(214,51,132,.3); z-index:10; user-select:none;
-    color:#d63384; font-weight:900;
+    color:#d63384; font-weight:900; touch-action:none;
   }
   .padBtn.held { background:#ffd6ec; transform:scale(.94); }
   #leftBtn  { left:calc(16px + env(safe-area-inset-left)); }
@@ -169,6 +174,9 @@ function bindPad(id, name) {
   el.addEventListener('pointerleave', off);
 }
 bindPad('leftBtn','left'); bindPad('rightBtn','right'); bindPad('jumpBtn','jump');
+// no long-press menus or double-tap zoom on the play controls
+window.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
 
 /* ---------- level ---------- */
 const GROUND_Y = 0;          // ground top is computed from screen height each frame
