@@ -140,29 +140,7 @@
   }
   #bigBtn:active { transform:translateY(3px); box-shadow:0 2px 0 #c2187a; }
   #ver { margin-top:10px; font-size:12px; font-weight:700; color:#c489ad; }
-  #bigBtn.hidden, #slider.hidden { display:none; }
-
-  #slider { margin-bottom:14px; }
-  #goal {
-    display:inline-grid; grid-template-columns:repeat(3,18px); gap:2px;
-    padding:6px; background:rgba(255,255,255,.6); border-radius:10px; margin-bottom:12px;
-  }
-  .gcell {
-    width:18px; height:18px; border-radius:5px; font-size:11px; font-weight:900; color:#fff;
-    display:flex; align-items:center; justify-content:center;
-  }
-  #grid {
-    position:relative; width:min(64vw,264px); aspect-ratio:1; margin:0 auto;
-    background:rgba(255,255,255,.45); border-radius:20px;
-  }
-  .tile {
-    position:absolute; width:31%; height:31%; border:none; border-radius:16px; cursor:pointer;
-    font-size:clamp(26px,8vw,36px); font-weight:900; color:#fff;
-    text-shadow:0 2px 2px rgba(0,0,0,.25);
-    box-shadow:0 4px 0 rgba(0,0,0,.18), inset 0 2px 0 rgba(255,255,255,.35);
-    transition:left .15s ease, top .15s ease; touch-action:manipulation;
-  }
-  .tile:active { filter:brightness(1.12); }
+  #bigBtn.hidden { display:none; }
 </style>
 </head>
 <body>
@@ -189,26 +167,22 @@
 
 <div id="overlay">
   <div id="panel">
-    <h1 id="panelTitle">🍭 Emmabug's Candy Kingdom 🍭</h1>
+    <h1 id="panelTitle">🍭 Princess Emma's Candy Kingdom 🍭</h1>
     <p id="panelText">Run and bounce through 4 candy lands!<br>
     Do quests for gummy bears to hatch pet eggs 🥚<br>
     and find the 3 hidden stars in every land! 🌟</p>
     <div id="lvlRow"></div>
-    <div id="slider" class="hidden">
-      <div id="goal"></div>
-      <div id="grid"></div>
-    </div>
     <button id="bigBtn">▶ Play!</button>
-    <div id="ver">v7.0</div>
+    <div id="ver">v7.1</div>
   </div>
 </div>
 
 <script>
 'use strict';
 /* ============================================================
-   Emmabug's Candy Kingdom — v7.0
+   Princess Emma's Candy Kingdom — v7.1
    2D candy side-scroller. Mobile-first, no fail states.
-   Four lands; each castle door opens with a sliding-tile puzzle.
+   Four lands; reaching each castle triggers a fireworks celebration.
    Gumdrop trampolines, moving platforms, bop-able grumpy gumballs,
    hidden stars, gummy-bear quests and hatchable pets that follow you.
    Progress (candy, stars, eggs, pets, unlocked lands) saves locally.
@@ -652,17 +626,24 @@ function update(dt) {
       }
     }
 
-    // reached the castle — the door asks a puzzle!
+    // reached the castle — fireworks, confetti and a big cheer for Emma!
     if (P.x >= LEVEL_END - 60) {
-      P.won = true; wonAt = time; sfx.lolli();
-      for (let i = 0; i < 14; i++)
-        setTimeout(() => burstRainbow(P.x - 100 + Math.random() * 260,
-          gt - 60 - Math.random() * 260, 10), i * 60);
-      setTimeout(showPuzzle, 1000);
+      P.won = true; wonAt = time;
+      wonMsg = PRAISE[Math.floor(Math.random() * PRAISE.length)];
+      sfx.win();
+      for (let i = 0; i < 26; i++)
+        setTimeout(() => { sfx.collect(); burstRainbow(P.x - 160 + Math.random() * 340,
+          gt - 40 - Math.random() * 320, 12); }, i * 140);
+      setTimeout(doorOpens, 4200);
     }
   } else {
     P.vx = 0;
     if (Math.random() < .15) burstRainbow(P.x - 120 + Math.random() * 240, gt - 80 - Math.random() * 200, 6);
+    // confetti rain during the celebration
+    if (Math.random() < .6)
+      particles.push({ x: camX + Math.random() * W, y: gt - 460 - Math.random() * 200,
+                       vx: (Math.random() - .5) * 50, vy: 70 + Math.random() * 70, g: 14,
+                       life: 3.5, col: RAINBOW[(Math.random() * 6) | 0], r: 3 + Math.random() * 3.5 });
   }
 
   // pet follows a little behind, floating pets hover higher
@@ -682,7 +663,9 @@ function update(dt) {
 
   // particles
   for (const p of particles) {
-    p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 600 * dt; p.life -= dt;
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.vy += (p.g !== undefined ? p.g : 600) * dt;   // confetti sets its own gentle gravity
+    p.life -= dt;
   }
   particles = particles.filter(p => p.life > 0);
   for (const h of hearts) { h.y += h.vy * dt; h.life -= dt; }
@@ -869,6 +852,18 @@ function draw() {
     ctx.restore();
   }
 
+  // Emma's crown name tag
+  {
+    const label = '👑 Emma';
+    ctx.font = '700 14px system-ui';
+    const tw = ctx.measureText(label).width;
+    ctx.fillStyle = 'rgba(255,255,255,.8)';
+    roundRect(P.x - tw / 2 - 8, P.y - 176, tw + 16, 22, 11); ctx.fill();
+    ctx.fillStyle = '#d63384';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(label, P.x - tw / 2, P.y - 160);
+  }
+
   // particles + hearts
   for (const p of particles) {
     ctx.globalAlpha = Math.min(1, p.life * 2);
@@ -884,6 +879,24 @@ function draw() {
   ctx.globalAlpha = 1;
 
   ctx.restore();
+
+  // big bouncing praise while the celebration plays (screen space)
+  if (P.won && running) {
+    const t = Math.min(1, (time - wonAt) * 1.5);
+    const pulse = 1 + Math.sin(time * 5) * .07;
+    ctx.save();
+    ctx.globalAlpha = t;
+    ctx.translate(W / 2, H * .28);
+    ctx.scale(t * pulse, t * pulse);
+    ctx.rotate(Math.sin(time * 2.2) * .05);
+    ctx.font = '900 ' + Math.round(Math.min(W * .07, 46)) + 'px system-ui';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff';
+    for (const [ox, oy] of [[-3, 0], [3, 0], [0, -3], [0, 3]]) ctx.fillText(wonMsg, ox, oy);
+    ctx.fillStyle = '#ff2d8d';
+    ctx.fillText(wonMsg, 0, 0);
+    ctx.restore();
+  }
 }
 
 function drawHills(gt, para, col, amp) {
@@ -1301,103 +1314,30 @@ function drawPrincess(x, y, face, step, onGround, winning, pal, ghost) {
   ctx.restore();
 }
 
-/* ---------- castle door sliding puzzle ---------- */
-const TILE_COLS = ['#ff3b6b','#ff9f1c','#ffd60a','#3ddc55','#3aa7ff','#8f5bff','#ff6fb5','#22c8b7'];
-
-// shuffle by walking the blank square N random legal moves — always solvable
-function makeSlider(moves) {
-  const t = [1, 2, 3, 4, 5, 6, 7, 8, 0];
-  let blank = 8, prev = -1;
-  for (let m = 0; m < moves; m++) {
-    const r = (blank / 3) | 0, c = blank % 3, opts = [];
-    if (r > 0) opts.push(blank - 3);
-    if (r < 2) opts.push(blank + 3);
-    if (c > 0) opts.push(blank - 1);
-    if (c < 2) opts.push(blank + 1);
-    const pick = opts.filter(o => o !== prev);
-    const from = pick[Math.floor(Math.random() * pick.length)];
-    t[blank] = t[from]; t[from] = 0;
-    prev = blank; blank = from;
-  }
-  return t;
-}
-function sliderSolved(t) {
-  for (let i = 0; i < 8; i++) if (t[i] !== i + 1) return false;
-  return true;
-}
+/* ---------- castle celebration ---------- */
+const PRAISE = [
+  'You did it, Emma! 💖', 'AMAZING Emma! 🌟', 'Emma the Superstar! ⭐',
+  'Princess Power, Emma! 👑', 'WOW Emma!! 🎉', 'Emma is so brave! 🦄',
+];
+let wonMsg = PRAISE[0];
 
 /* ---------- overlay / flow ---------- */
 const overlay = document.getElementById('overlay');
 const bigBtn = document.getElementById('bigBtn');
 const panelTitle = document.getElementById('panelTitle');
 const panelText = document.getElementById('panelText');
-const sliderEl = document.getElementById('slider');
-const gridEl = document.getElementById('grid');
-let pz = null, nextAction = 'start';
-
-// tiny 3x3 goal picture so Emma always sees what "done" looks like
-(function buildGoal() {
-  const goal = document.getElementById('goal');
-  for (let i = 0; i < 9; i++) {
-    const d = document.createElement('div');
-    d.className = 'gcell';
-    if (i < 8) { d.textContent = i + 1; d.style.background = TILE_COLS[i]; }
-    else d.style.background = 'rgba(214,51,132,.25)';
-    goal.appendChild(d);
-  }
-})();
-
-function showPuzzle() {
-  const moves = levelIdx === 0 ? 12 : 30;   // level 1 nearly solved, level 2 trickier
-  do { pz = makeSlider(moves); } while (sliderSolved(pz));
-  panelTitle.textContent = '🔐 Candy Door Puzzle!';
-  panelText.innerHTML = 'Slide the tiles until the numbers march<br>1 → 8, just like the little picture!';
-  bigBtn.classList.add('hidden');
-  lvlRowEl.classList.add('hidden');
-  gridEl.innerHTML = '';
-  for (let v = 1; v <= 8; v++) {
-    const b = document.createElement('button');
-    b.className = 'tile';
-    b.textContent = v;
-    b.style.background = TILE_COLS[v - 1];
-    b.dataset.v = v;
-    b.addEventListener('pointerdown', e => { e.preventDefault(); slideTile(v); });
-    gridEl.appendChild(b);
-  }
-  placeTiles();
-  sliderEl.classList.remove('hidden');
-  overlay.classList.remove('hidden');
-}
-
-function placeTiles() {
-  for (const b of gridEl.children) {
-    const i = pz.indexOf(+b.dataset.v);
-    b.style.left = (1.5 + (i % 3) * 33) + '%';
-    b.style.top = (1.5 + ((i / 3) | 0) * 33) + '%';
-  }
-}
-
-function slideTile(v) {
-  const i = pz.indexOf(v), b = pz.indexOf(0);
-  const dr = Math.abs(((i / 3) | 0) - ((b / 3) | 0)), dc = Math.abs(i % 3 - b % 3);
-  if (dr + dc !== 1) { tone(200, .08, 'sine', .08); return; }   // not next to the hole
-  pz[b] = v; pz[i] = 0;
-  tone(560 + v * 40, .08, 'triangle', .12);
-  placeTiles();
-  if (sliderSolved(pz)) { sfx.win(); setTimeout(doorOpens, 500); }
-}
+let nextAction = 'start';
 
 function doorOpens() {
-  sliderEl.classList.add('hidden');
   maxLevel = Math.max(maxLevel, Math.min(levelIdx + 1, LEVELS.length - 1));
   saveGame();
   if (levelIdx < LEVELS.length - 1) {
-    panelTitle.textContent = '🎉 The door opens! 🎉';
-    panelText.innerHTML = 'You solved it — so smart!<br>Next stop: <b>' + LEVELS[levelIdx + 1].name + '</b> ⭐';
+    panelTitle.textContent = '🎉 The castle door opens! 🎉';
+    panelText.innerHTML = 'Hooray for Princess Emma!<br>Next stop: <b>' + LEVELS[levelIdx + 1].name + '</b> ⭐';
     bigBtn.textContent = '▶ Level ' + (levelIdx + 2) + '!';
     nextAction = 'next';
   } else {
-    panelTitle.textContent = '👑 You did it, Princess! 👑';
+    panelTitle.textContent = '👑 You did it, Princess Emma! 👑';
     panelText.innerHTML = 'You finished all of Candy Kingdom with <b>🍫 ' + choc +
       '</b> candies and <b>🌟 ' + stars + '</b> stars!<br>The whole kingdom is cheering for you! 🎉';
     bigBtn.textContent = '▶ Play again!';
@@ -1406,6 +1346,7 @@ function doorOpens() {
   syncLvlRow();
   lvlRowEl.classList.remove('hidden');
   bigBtn.classList.remove('hidden');
+  overlay.classList.remove('hidden');
 }
 
 bigBtn.addEventListener('click', () => {
@@ -1438,7 +1379,6 @@ function startLevel() {
   document.getElementById('chocPill').textContent = '🍫 ' + choc;
   document.getElementById('starPill').textContent = '🌟 ' + stars;
   document.getElementById('levelPill').textContent = '🏰 ' + (levelIdx + 1);
-  sliderEl.classList.add('hidden');
   overlay.classList.add('hidden');
   running = true;
 }
