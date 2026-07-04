@@ -1,4 +1,4 @@
-const CACHE = 'emmabug-v5.3';
+const CACHE = 'emmabug-v5.4';
 const FILES = ['./', './index.html', './icon.svg', './manifest.webmanifest',
                './sea/', './sea/index.html', './sea/icon.svg', './sea/manifest.webmanifest',
                './candy/', './candy/index.html', './candy/icon.svg', './candy/manifest.webmanifest'];

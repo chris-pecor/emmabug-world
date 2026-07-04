@@ -69,16 +69,29 @@
     box-shadow:0 5px 0 #c2187a, 0 8px 20px rgba(214,51,132,.4);
   }
   #bigBtn:active { transform:translateY(3px); box-shadow:0 2px 0 #c2187a; }
-  #bigBtn.hidden, #answers.hidden { display:none; }
+  #bigBtn.hidden, #slider.hidden { display:none; }
 
-  #answers { display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin-bottom:6px; }
-  .ansBtn {
-    font-size:clamp(20px,5vw,26px); font-weight:900; color:#fff; border:none; cursor:pointer;
-    background:linear-gradient(180deg,#a78bfa,#7c3aed); border-radius:22px; padding:14px 24px;
-    min-width:96px; box-shadow:0 4px 0 #5b21b6, 0 6px 16px rgba(124,58,237,.35);
+  #slider { margin-bottom:14px; }
+  #goal {
+    display:inline-grid; grid-template-columns:repeat(3,18px); gap:2px;
+    padding:6px; background:rgba(255,255,255,.6); border-radius:10px; margin-bottom:12px;
   }
-  .ansBtn:active { transform:translateY(2px); box-shadow:0 2px 0 #5b21b6; }
-  .ansBtn.nope { opacity:.35; }
+  .gcell {
+    width:18px; height:18px; border-radius:5px; font-size:11px; font-weight:900; color:#fff;
+    display:flex; align-items:center; justify-content:center;
+  }
+  #grid {
+    position:relative; width:min(64vw,264px); aspect-ratio:1; margin:0 auto;
+    background:rgba(255,255,255,.45); border-radius:20px;
+  }
+  .tile {
+    position:absolute; width:31%; height:31%; border:none; border-radius:16px; cursor:pointer;
+    font-size:clamp(26px,8vw,36px); font-weight:900; color:#fff;
+    text-shadow:0 2px 2px rgba(0,0,0,.25);
+    box-shadow:0 4px 0 rgba(0,0,0,.18), inset 0 2px 0 rgba(255,255,255,.35);
+    transition:left .15s ease, top .15s ease; touch-action:manipulation;
+  }
+  .tile:active { filter:brightness(1.12); }
 </style>
 </head>
 <body>
@@ -99,8 +112,11 @@
     <h1 id="panelTitle">🍭 Emmabug's Candy Kingdom 🍭</h1>
     <p id="panelText">Help the Princess run and jump through Candy Land!<br>
     Collect 🍫 and 🍭, hug the gummy bears,<br>
-    and solve the puzzle to open each Candy Castle!</p>
-    <div id="answers" class="hidden"></div>
+    and slide the candy tiles to open each Candy Castle!</p>
+    <div id="slider" class="hidden">
+      <div id="goal"></div>
+      <div id="grid"></div>
+    </div>
     <button id="bigBtn">▶ Play!</button>
   </div>
 </div>
@@ -108,9 +124,10 @@
 <script>
 'use strict';
 /* ============================================================
-   Emmabug's Candy Kingdom — v5.3
+   Emmabug's Candy Kingdom — v5.4
    2D candy side-scroller. Mobile-first, no fail states.
-   Two levels; each castle door opens with a math puzzle.
+   Two levels; each castle door opens with a sliding-tile puzzle.
+   Giant gumdrop trampolines give a super bounce.
    ============================================================ */
 
 const canvas = document.getElementById('c');
@@ -153,6 +170,7 @@ const sfx = {
   lolli()   { [660,880,1100,1320].forEach((f,i)=>tone(f,.14,'sine',.14,i*.06)); },
   hug()     { tone(520, .2, 'triangle', .14); tone(780, .25, 'triangle', .12, .1); },
   bounce()  { tone(200, .2, 'sine', .18); tone(330, .18, 'sine', .12, .08); },
+  spring()  { tone(160, .1, 'sine', .2); tone(330, .12, 'triangle', .16, .05); tone(660, .2, 'triangle', .14, .11); },
   win()     { [523,659,784,1047,1319,1568].forEach((f,i)=>tone(f,.35,'triangle',.16,i*.13)); }
 };
 const muteBtn = document.getElementById('muteBtn');
@@ -233,14 +251,14 @@ const LEVELS = [
   }
 ];
 let levelIdx = 0, LEVEL_END = LEVELS[0].end;
-let platforms = [], candies = [], bears = [], decor = [], particles = [], hearts = [];
+let platforms = [], candies = [], bears = [], decor = [], particles = [], hearts = [], springs = [];
 
 function rng(seed) { let s = seed;
   return () => (s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff; }
 
 function buildLevel() {
   platforms = []; candies = []; bears = []; decor = [];
-  particles = []; hearts = [];
+  particles = []; hearts = []; springs = [];
   const L = LEVELS[levelIdx];
   LEVEL_END = L.end;
   const r = rng(L.seed);
@@ -281,6 +299,14 @@ function buildLevel() {
     else if (t < .55) decor.push({ x: x + r() * 90, kind: 'gumdrop', s: .7 + r() * .7,
                                    col: bearCols[Math.floor(r() * 5)] });
     else if (t < .75) decor.push({ x: x + r() * 90, kind: 'mint', s: .6 + r() * .6 });
+  }
+
+  // giant gumdrop trampolines — touch one for a super bounce!
+  for (const [gx, gw] of L.grounds) {
+    if (gx < 0 || gw < 700 || r() > .65) continue;
+    const x = gx + gw * (.5 + r() * .3);
+    if (x > LEVEL_END - 500) continue;   // keep clear of the castle
+    springs.push({ x, col: bearCols[Math.floor(r() * 5)], sq: 0 });
   }
 }
 
@@ -340,6 +366,15 @@ function update(dt) {
       if (P.vy >= 0 && prevBottom <= top + 2 && P.y >= top) {
         P.y = top; P.vy = 0; P.onGround = true;
         if (pl.type === 'ground') P.safeX = P.x;
+      }
+    }
+
+    // gumdrop trampolines — super bounce!
+    for (const s of springs) {
+      if (s.sq > 0) s.sq -= dt;
+      if (P.vy > -100 && Math.abs(P.x - s.x) < 42 && P.y > gt - 85 && P.y < gt + 10) {
+        P.y = gt - 74; P.vy = -1500; P.onGround = false; s.sq = .35;
+        sfx.spring(); burstRainbow(s.x, gt - 70, 14);
       }
     }
 
@@ -494,6 +529,10 @@ function draw() {
     if (pl.x > camX + W + 100 || pl.x + pl.w < camX - 100) continue;
     cottonGround(pl.x, gt, pl.w);
   }
+
+  // gumdrop trampolines
+  for (const s of springs)
+    if (s.x > camX - 120 && s.x < camX + W + 120) drawSpring(s, gt);
 
   // soft shadows ground the characters
   ctx.fillStyle = 'rgba(150,40,100,.15)';
@@ -668,6 +707,32 @@ function gumdrop(x, gt, s, col) {
     ctx.arc(-18 + (i * 37) % 36, -12 - (i * 17) % 34, 2.6, 0, 7);
     ctx.fill();
   }
+  ctx.restore();
+}
+
+function drawSpring(s, gt) {
+  // squish right after a bounce, gentle breathing pulse otherwise
+  const amt = s.sq > 0 ? Math.sin(s.sq / .35 * Math.PI) * .38 : 0;
+  const pulse = 1 + Math.sin(time * 3 + s.x) * .05;
+  ctx.save(); ctx.translate(s.x, gt);
+  ctx.scale(1.35 * pulse * (1 + amt * .7), 1.35 * pulse * (1 - amt));
+  ctx.fillStyle = s.col;
+  ctx.beginPath();
+  ctx.moveTo(-30, 0);
+  ctx.quadraticCurveTo(-30, -52, 0, -55);
+  ctx.quadraticCurveTo(30, -52, 30, 0);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.5)';
+  ctx.beginPath(); ctx.ellipse(-10, -40, 8, 4.5, -.5, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.45)';
+  for (let i = 0; i < 7; i++) {
+    ctx.beginPath(); ctx.arc(-18 + (i * 37) % 36, -12 - (i * 17) % 34, 2.6, 0, 7); ctx.fill();
+  }
+  // white star = "jump on me!"
+  ctx.fillStyle = '#fff';
+  ctx.font = '900 20px system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillText('★', 0, -20);
   ctx.restore();
 }
 
@@ -894,66 +959,29 @@ function drawPrincess(x, y, face, step, onGround, winning) {
   ctx.restore();
 }
 
-/* ---------- castle door puzzles ---------- */
-function makePuzzle(grade) {
-  const R = n => Math.floor(Math.random() * n);
-  let q, ans, wrongs, hint;
-  if (grade === 5) {
-    const t = R(4);
-    if (t === 0) {
-      const a = 12 + R(38), b = 3 + R(6);
-      q = a + ' × ' + b + ' = ?'; ans = a * b;
-      wrongs = [ans + b, ans - b, ans + 10];
-      hint = a + ' × ' + b + ' is ' + a + ' added up ' + b + ' times!';
-    } else if (t === 1) {
-      const b = 3 + R(6), ansv = 4 + R(8), a = b * ansv;
-      q = a + ' ÷ ' + b + ' = ?'; ans = ansv;
-      wrongs = [ans + 1, ans - 1, ans + 2];
-      hint = 'How many ' + b + 's fit inside ' + a + '?';
-    } else if (t === 2) {
-      const a = 2 + R(8), b = 2 + R(8), c = 3 + R(9);
-      q = c + ' + ' + a + ' × ' + b + ' = ?'; ans = c + a * b;
-      wrongs = [(c + a) * b, ans + a, ans - b];
-      hint = 'Do the × part first, then add ' + c + '!';
-    } else {
-      const d = [2, 3, 4, 5][R(4)], mult = 3 + R(10), whole = d * mult;
-      q = 'What is 1/' + d + ' of ' + whole + '?'; ans = mult;
-      wrongs = [ans + d, ans - 1, ans + 2];
-      hint = 'Split ' + whole + ' into ' + d + ' equal parts!';
-    }
-  } else {
-    const t = R(4);
-    if (t === 0) {
-      const p = [10, 20, 25, 50][R(4)], base = 20 * (1 + R(9));
-      q = 'What is ' + p + '% of ' + base + '?'; ans = base * p / 100;
-      wrongs = [ans + 4, ans + 10, Math.max(1, ans - 4)];
-      hint = '10% of ' + base + ' is ' + (base / 10) + ' — build from there!';
-    } else if (t === 1) {
-      const a = 3 + R(7), b = 2 + R(10);
-      q = a + '² + ' + b + ' = ?'; ans = a * a + b;
-      wrongs = [a * 2 + b, ans + a, ans - 1];
-      hint = a + '² means ' + a + ' × ' + a + '!';
-    } else if (t === 2) {
-      const a = 3 + R(7), b = a + 2 + R(8);
-      q = a + ' − ' + b + ' = ?'; ans = a - b;
-      wrongs = [b - a, ans - 1, ans + 2];
-      hint = 'The answer is less than zero!';
-    } else {
-      const a = 6 + R(20), b = 3 + R(8);
-      q = 'You have ' + a + ' candies. You double them, then give ' + b + ' to a bear. How many left?';
-      ans = 2 * a - b;
-      wrongs = [2 * (a - b), a + b, ans + 2];
-      hint = 'First double: ' + a + ' × 2 = ' + (2 * a) + '. Then take away ' + b + '!';
-    }
+/* ---------- castle door sliding puzzle ---------- */
+const TILE_COLS = ['#ff3b6b','#ff9f1c','#ffd60a','#3ddc55','#3aa7ff','#8f5bff','#ff6fb5','#22c8b7'];
+
+// shuffle by walking the blank square N random legal moves — always solvable
+function makeSlider(moves) {
+  const t = [1, 2, 3, 4, 5, 6, 7, 8, 0];
+  let blank = 8, prev = -1;
+  for (let m = 0; m < moves; m++) {
+    const r = (blank / 3) | 0, c = blank % 3, opts = [];
+    if (r > 0) opts.push(blank - 3);
+    if (r < 2) opts.push(blank + 3);
+    if (c > 0) opts.push(blank - 1);
+    if (c < 2) opts.push(blank + 1);
+    const pick = opts.filter(o => o !== prev);
+    const from = pick[Math.floor(Math.random() * pick.length)];
+    t[blank] = t[from]; t[from] = 0;
+    prev = blank; blank = from;
   }
-  const opts = [ans];
-  for (const w of wrongs) if (!opts.includes(w)) opts.push(w);
-  let k = 3;
-  while (opts.length < 4) { if (!opts.includes(ans + k)) opts.push(ans + k); k += 3; }
-  for (let i = opts.length - 1; i > 0; i--) {
-    const j = R(i + 1); [opts[i], opts[j]] = [opts[j], opts[i]];
-  }
-  return { q, ans, hint, opts };
+  return t;
+}
+function sliderSolved(t) {
+  for (let i = 0; i < 8; i++) if (t[i] !== i + 1) return false;
+  return true;
 }
 
 /* ---------- overlay / flow ---------- */
@@ -961,51 +989,76 @@ const overlay = document.getElementById('overlay');
 const bigBtn = document.getElementById('bigBtn');
 const panelTitle = document.getElementById('panelTitle');
 const panelText = document.getElementById('panelText');
-const ansDiv = document.getElementById('answers');
-let puzzle = null, tries = 0, nextAction = 'start';
+const sliderEl = document.getElementById('slider');
+const gridEl = document.getElementById('grid');
+let pz = null, nextAction = 'start';
+
+// tiny 3x3 goal picture so Emma always sees what "done" looks like
+(function buildGoal() {
+  const goal = document.getElementById('goal');
+  for (let i = 0; i < 9; i++) {
+    const d = document.createElement('div');
+    d.className = 'gcell';
+    if (i < 8) { d.textContent = i + 1; d.style.background = TILE_COLS[i]; }
+    else d.style.background = 'rgba(214,51,132,.25)';
+    goal.appendChild(d);
+  }
+})();
 
 function showPuzzle() {
-  puzzle = makePuzzle(LEVELS[levelIdx].grade);
-  tries = 0;
+  const moves = levelIdx === 0 ? 12 : 30;   // level 1 nearly solved, level 2 trickier
+  do { pz = makeSlider(moves); } while (sliderSolved(pz));
   panelTitle.textContent = '🔐 Candy Door Puzzle!';
-  panelText.innerHTML = 'Solve it to open the castle door!<br><b style="font-size:1.6em">' + puzzle.q + '</b>';
+  panelText.innerHTML = 'Slide the tiles until the numbers march<br>1 → 8, just like the little picture!';
   bigBtn.classList.add('hidden');
-  ansDiv.innerHTML = '';
-  for (const o of puzzle.opts) {
+  gridEl.innerHTML = '';
+  for (let v = 1; v <= 8; v++) {
     const b = document.createElement('button');
-    b.className = 'ansBtn'; b.textContent = o;
-    b.addEventListener('click', () => pickAnswer(o, b));
-    ansDiv.appendChild(b);
+    b.className = 'tile';
+    b.textContent = v;
+    b.style.background = TILE_COLS[v - 1];
+    b.dataset.v = v;
+    b.addEventListener('pointerdown', e => { e.preventDefault(); slideTile(v); });
+    gridEl.appendChild(b);
   }
-  ansDiv.classList.remove('hidden');
+  placeTiles();
+  sliderEl.classList.remove('hidden');
   overlay.classList.remove('hidden');
 }
 
-function pickAnswer(o, btn) {
-  if (o === puzzle.ans) {
-    sfx.win();
-    ansDiv.classList.add('hidden');
-    if (levelIdx < LEVELS.length - 1) {
-      panelTitle.textContent = '🎉 The door opens! 🎉';
-      panelText.innerHTML = 'You solved it — so smart!<br>Next stop: <b>' + LEVELS[levelIdx + 1].name + '</b> ⭐';
-      bigBtn.textContent = '▶ Level ' + (levelIdx + 2) + '!';
-      nextAction = 'next';
-    } else {
-      panelTitle.textContent = '👑 You did it, Princess! 👑';
-      panelText.innerHTML = 'You solved every puzzle and beat Candy Kingdom with <b>🍫 ' + choc +
-        '</b> candies!<br>The whole kingdom is cheering for you! 🎉';
-      bigBtn.textContent = '▶ Play again!';
-      nextAction = 'restart';
-    }
-    bigBtn.classList.remove('hidden');
-  } else {
-    tries++;
-    sfx.bounce();
-    btn.classList.add('nope'); btn.disabled = true;
-    panelTitle.textContent = tries >= 2 ? '💡 Hint!' : '💪 Almost! Try again!';
-    if (tries >= 2)
-      panelText.innerHTML = puzzle.hint + '<br><b style="font-size:1.6em">' + puzzle.q + '</b>';
+function placeTiles() {
+  for (const b of gridEl.children) {
+    const i = pz.indexOf(+b.dataset.v);
+    b.style.left = (1.5 + (i % 3) * 33) + '%';
+    b.style.top = (1.5 + ((i / 3) | 0) * 33) + '%';
   }
+}
+
+function slideTile(v) {
+  const i = pz.indexOf(v), b = pz.indexOf(0);
+  const dr = Math.abs(((i / 3) | 0) - ((b / 3) | 0)), dc = Math.abs(i % 3 - b % 3);
+  if (dr + dc !== 1) { tone(200, .08, 'sine', .08); return; }   // not next to the hole
+  pz[b] = v; pz[i] = 0;
+  tone(560 + v * 40, .08, 'triangle', .12);
+  placeTiles();
+  if (sliderSolved(pz)) { sfx.win(); setTimeout(doorOpens, 500); }
+}
+
+function doorOpens() {
+  sliderEl.classList.add('hidden');
+  if (levelIdx < LEVELS.length - 1) {
+    panelTitle.textContent = '🎉 The door opens! 🎉';
+    panelText.innerHTML = 'You solved it — so smart!<br>Next stop: <b>' + LEVELS[levelIdx + 1].name + '</b> ⭐';
+    bigBtn.textContent = '▶ Level ' + (levelIdx + 2) + '!';
+    nextAction = 'next';
+  } else {
+    panelTitle.textContent = '👑 You did it, Princess! 👑';
+    panelText.innerHTML = 'You opened every candy door and finished Candy Kingdom with <b>🍫 ' + choc +
+      '</b> candies!<br>The whole kingdom is cheering for you! 🎉';
+    bigBtn.textContent = '▶ Play again!';
+    nextAction = 'restart';
+  }
+  bigBtn.classList.remove('hidden');
 }
 
 bigBtn.addEventListener('click', () => {
@@ -1021,7 +1074,7 @@ function startLevel() {
   P.safeX = 80; camX = -380;
   document.getElementById('chocPill').textContent = '🍫 ' + choc;
   document.getElementById('levelPill').textContent = '⭐ ' + (levelIdx + 1);
-  ansDiv.classList.add('hidden');
+  sliderEl.classList.add('hidden');
   overlay.classList.add('hidden');
   running = true;
 }
