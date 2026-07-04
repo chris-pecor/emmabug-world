@@ -1,4 +1,4 @@
-const CACHE = 'emmabug-v6.1';
+const CACHE = 'emmabug-v6.2';
 const FILES = ['./', './index.html', './icon.svg', './manifest.webmanifest',
                './sea/', './sea/index.html', './sea/icon.svg', './sea/manifest.webmanifest',
                './candy/', './candy/index.html', './candy/icon.svg', './candy/manifest.webmanifest'];
@@ -17,6 +17,20 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
+  // pages: network-first so updates arrive on a normal reload; cache keeps offline working
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request).then(res => {
+        const copy = res.clone();
+        caches.open(CACHE).then(c => c.put(e.request, copy));
+        return res;
+      }).catch(() =>
+        caches.match(e.request).then(hit => hit || caches.match('./index.html'))
+      )
+    );
+    return;
+  }
+  // everything else: cache-first
   e.respondWith(
     caches.match(e.request).then(hit => hit || fetch(e.request).then(res => {
       const copy = res.clone();
