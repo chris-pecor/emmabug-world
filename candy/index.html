@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#ffd6ec">
+<title>Emmabug's Candy Kingdom</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#ffe9f5; overscroll-behavior:none;
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  #c { display:block; width:100%; height:100%; touch-action:none; }
+
+  .rbtn {
+    position:fixed; width:58px; height:58px; border-radius:50%;
+    border:3px solid #ff8fc8; background:rgba(255,255,255,.88);
+    font-size:28px; line-height:1; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 3px 10px rgba(214,51,132,.25); z-index:10; user-select:none;
+  }
+  .rbtn:active { transform:scale(.92); }
+  #muteBtn { top:calc(12px + env(safe-area-inset-top)); right:12px; }
+
+  #hud {
+    position:fixed; top:calc(12px + env(safe-area-inset-top)); left:12px; z-index:10;
+    display:flex; gap:8px; align-items:center;
+  }
+  .pill {
+    background:rgba(255,255,255,.88); border:3px solid #ffc2e0; border-radius:20px;
+    padding:6px 14px; font-size:22px; font-weight:800; color:#d63384;
+    box-shadow:0 3px 10px rgba(214,51,132,.25); user-select:none;
+  }
+
+  .padBtn {
+    position:fixed; bottom:calc(16px + env(safe-area-inset-bottom));
+    width:76px; height:76px; border-radius:50%;
+    border:4px solid #ff8fc8; background:rgba(255,255,255,.82);
+    font-size:36px; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 4px 14px rgba(214,51,132,.3); z-index:10; user-select:none;
+    color:#d63384; font-weight:900;
+  }
+  .padBtn.held { background:#ffd6ec; transform:scale(.94); }
+  #leftBtn  { left:calc(16px + env(safe-area-inset-left)); }
+  #rightBtn { left:calc(104px + env(safe-area-inset-left)); }
+  #jumpBtn  { right:calc(16px + env(safe-area-inset-right)); width:92px; height:92px; font-size:44px; }
+
+  #overlay {
+    position:fixed; inset:0; z-index:20; display:flex; align-items:center; justify-content:center;
+    background:rgba(255,182,220,.55); backdrop-filter:blur(3px); padding:16px;
+  }
+  #overlay.hidden { display:none; }
+  #panel {
+    background:linear-gradient(160deg,#fff0fa,#ffe3f2 55%,#e9d5ff);
+    border:4px solid #ff8fc8; border-radius:26px; text-align:center;
+    width:min(460px,94vw); padding:26px 20px; box-shadow:0 10px 40px rgba(214,51,132,.35);
+  }
+  #panel h1 { font-size:clamp(26px,6vw,38px); color:#d63384; margin-bottom:10px;
+    text-shadow:0 2px 0 #fff; }
+  #panel p { font-size:clamp(16px,4vw,20px); color:#8b3a72; margin-bottom:18px; line-height:1.4; }
+  #bigBtn {
+    font-size:clamp(20px,5vw,26px); font-weight:900; color:#fff; border:none; cursor:pointer;
+    background:linear-gradient(180deg,#ff7ab8,#f0359b); border-radius:40px; padding:14px 38px;
+    box-shadow:0 5px 0 #c2187a, 0 8px 20px rgba(214,51,132,.4);
+  }
+  #bigBtn:active { transform:translateY(3px); box-shadow:0 2px 0 #c2187a; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="hud">
+  <div class="pill" id="chocPill">🍫 0</div>
+</div>
+<div class="rbtn" id="muteBtn">🔊</div>
+
+<div class="padBtn" id="leftBtn">◀</div>
+<div class="padBtn" id="rightBtn">▶</div>
+<div class="padBtn" id="jumpBtn">⬆</div>
+
+<div id="overlay">
+  <div id="panel">
+    <h1 id="panelTitle">🍭 Emmabug's Candy Kingdom 🍭</h1>
+    <p id="panelText">Help the Princess run and jump through Candy Land!<br>
+    Collect 🍫 chocolates and 🍭 lollipops,<br>hug the gummy bears, and find the Candy Castle!</p>
+    <button id="bigBtn">▶ Play!</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============================================================
+   Emmabug's Candy Kingdom — v5
+   2D candy side-scroller. Mobile-first, no fail states.
+   ============================================================ */
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W * DPR; canvas.height = H * DPR;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const RAINBOW = ['#ff3b6b','#ff9f1c','#ffd60a','#3ddc55','#3aa7ff','#8f5bff'];
+
+/* ---------- audio ---------- */
+let audioCtx = null, muted = false;
+function ac() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function tone(freq, dur, type, vol, when) {
+  if (muted) return;
+  try {
+    const a = ac(), t = a.currentTime + (when || 0);
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = type || 'sine'; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol || .15, t);
+    g.gain.exponentialRampToValueAtTime(.001, t + dur);
+    o.connect(g); g.connect(a.destination);
+    o.start(t); o.stop(t + dur + .02);
+  } catch (e) {}
+}
+const sfx = {
+  jump()    { tone(420, .18, 'triangle', .18); tone(640, .16, 'triangle', .12, .05); },
+  collect() { tone(880, .12, 'sine', .16); tone(1320, .18, 'sine', .12, .06); },
+  lolli()   { [660,880,1100,1320].forEach((f,i)=>tone(f,.14,'sine',.14,i*.06)); },
+  hug()     { tone(520, .2, 'triangle', .14); tone(780, .25, 'triangle', .12, .1); },
+  bounce()  { tone(200, .2, 'sine', .18); tone(330, .18, 'sine', .12, .08); },
+  win()     { [523,659,784,1047,1319,1568].forEach((f,i)=>tone(f,.35,'triangle',.16,i*.13)); }
+};
+const muteBtn = document.getElementById('muteBtn');
+muteBtn.addEventListener('click', () => {
+  muted = !muted;
+  muteBtn.textContent = muted ? '🔇' : '🔊';
+});
+
+/* ---------- input ---------- */
+const input = { left:false, right:false, jump:false, jumpPressed:false };
+const keyMap = {
+  ArrowLeft:'left', a:'left', A:'left',
+  ArrowRight:'right', d:'right', D:'right',
+  ArrowUp:'jump', w:'jump', W:'jump', ' ':'jump'
+};
+window.addEventListener('keydown', e => {
+  const k = keyMap[e.key]; if (!k) return;
+  if (k === 'jump' && !input.jump) input.jumpPressed = true;
+  input[k] = true; e.preventDefault();
+});
+window.addEventListener('keyup', e => {
+  const k = keyMap[e.key]; if (k) input[k] = false;
+});
+function bindPad(id, name) {
+  const el = document.getElementById(id);
+  const on = e => { e.preventDefault();
+    if (name === 'jump' && !input.jump) input.jumpPressed = true;
+    input[name] = true; el.classList.add('held'); };
+  const off = e => { e.preventDefault(); input[name] = false; el.classList.remove('held'); };
+  el.addEventListener('pointerdown', on);
+  el.addEventListener('pointerup', off);
+  el.addEventListener('pointercancel', off);
+  el.addEventListener('pointerleave', off);
+}
+bindPad('leftBtn','left'); bindPad('rightBtn','right'); bindPad('jumpBtn','jump');
+
+/* ---------- level ---------- */
+const GROUND_Y = 0;          // ground top is computed from screen height each frame
+const LEVEL_END = 7400;      // castle door x
+let platforms = [], candies = [], bears = [], decor = [], particles = [], hearts = [];
+
+function rng(seed) { let s = seed;
+  return () => (s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff; }
+
+function buildLevel() {
+  platforms = []; candies = []; bears = []; decor = [];
+  particles = []; hearts = [];
+  const r = rng(20260703);
+
+  // cotton-candy ground segments with friendly gaps between them
+  const grounds = [
+    [-400, 1500], [1650, 900], [2700, 800], [3650, 1000],
+    [4800, 700], [5650, 800], [6600, 1600]
+  ];
+  for (const [x, w] of grounds)
+    platforms.push({ x, w, y: 0, h: 999, type: 'ground' });
+
+  // floating licorice platforms (y is height above ground top)
+  const floats = [
+    [700, 120, 160], [1000, 240, 150], [1350, 130, 170],
+    [1560, 110, 200, 'gap'], [1900, 250, 140], [2250, 130, 180],
+    [2560, 120, 210, 'gap'], [2950, 140, 150], [3250, 260, 170],
+    [3540, 120, 200, 'gap'], [3900, 130, 150], [4200, 250, 160],
+    [4550, 130, 200], [4720, 120, 240, 'gap'], [5050, 140, 150],
+    [5380, 260, 170], [5600, 110, 220, 'gap'], [5900, 130, 150],
+    [6200, 250, 160], [6500, 140, 190], [6900, 260, 150]
+  ];
+  for (const [x, up, w] of floats)
+    platforms.push({ x, w, y: up, h: 26, type: 'licorice' });
+
+  // chocolates: rows over ground and on platforms
+  const chocAt = (x, up) => candies.push({ x, up, kind: 'choc', got: false, bob: r() * 6 });
+  const lolliAt = (x, up) => candies.push({ x, up, kind: 'lolli', got: false, bob: r() * 6 });
+  for (const [x, up, w] of floats) {
+    const n = Math.max(1, Math.floor(w / 90));
+    for (let i = 0; i < n; i++) chocAt(x + w * (i + .5) / n, up + 55);
+  }
+  for (let x = 300; x < LEVEL_END - 300; x += 260)
+    if (r() < .75) chocAt(x + r() * 80, 60 + r() * 30);
+  [900, 1780, 2620, 3450, 4380, 5230, 6060, 6820].forEach(x => lolliAt(x, 210));
+
+  // friendly gummy bears patrolling the ground
+  const bearCols = ['#ff5f7e','#3ddc55','#ffb703','#3aa7ff','#b56cff'];
+  [500, 1900, 2900, 3900, 5000, 5850, 6750].forEach((x, i) =>
+    bears.push({ x, dir: i % 2 ? -1 : 1, col: bearCols[i % bearCols.length],
+                 happy: 0, home: x, range: 130 + r() * 80, step: 0 }));
+
+  // background decorations
+  for (let x = -300; x < LEVEL_END + 600; x += 150) {
+    const t = r();
+    if (t < .3) decor.push({ x: x + r() * 90, kind: 'cane', s: .7 + r() * .6 });
+    else if (t < .55) decor.push({ x: x + r() * 90, kind: 'gumdrop', s: .7 + r() * .7,
+                                   col: bearCols[Math.floor(r() * 5)] });
+    else if (t < .75) decor.push({ x: x + r() * 90, kind: 'mint', s: .6 + r() * .6 });
+  }
+}
+
+/* ---------- player ---------- */
+const P = {
+  x: 80, y: 0, vx: 0, vy: 0, w: 34, h: 96,
+  onGround: false, jumps: 0, face: 1, step: 0,
+  coyote: 0, safeX: 80, won: false
+};
+const GRAV = 2300, MOVE = 340, JUMP_V = 900;
+let choc = 0, camX = 0, time = 0, running = false, wonAt = 0;
+
+function groundTop() { return H - Math.max(90, H * .16); }
+
+function platTop(p) { return p.type === 'ground' ? groundTop() : groundTop() - p.y; }
+
+/* ---------- update ---------- */
+function update(dt) {
+  time += dt;
+  const gt = groundTop();
+
+  if (!P.won) {
+    // run
+    const want = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+    P.vx += (want * MOVE - P.vx) * Math.min(1, dt * 12);
+    if (want) P.face = want;
+    if (Math.abs(P.vx) > 20 && P.onGround) P.step += dt * Math.abs(P.vx) * .05;
+
+    // jump (double jump + coyote time = very forgiving)
+    if (P.onGround) { P.jumps = 2; P.coyote = .12; }
+    else P.coyote = Math.max(0, P.coyote - dt);
+    if (input.jumpPressed) {
+      if (P.coyote > 0 || P.jumps > 0) {
+        P.vy = -JUMP_V * (P.coyote > 0 || P.jumps === 2 ? 1 : .85);
+        if (P.coyote <= 0) P.jumps--;
+        else P.jumps = 1;
+        P.coyote = 0; P.onGround = false;
+        sfx.jump();
+        burst(P.x, P.y, 6, '#fff');
+      }
+      input.jumpPressed = false;
+    }
+    input.jumpPressed = false;
+
+    // physics
+    P.vy = Math.min(P.vy + GRAV * dt, 1200);
+    const prevBottom = P.y;
+    P.x += P.vx * dt;
+    P.y += P.vy * dt;
+    P.x = Math.max(-350, Math.min(LEVEL_END + 400, P.x));
+
+    // land on platforms (one-way, from above)
+    P.onGround = false;
+    for (const pl of platforms) {
+      const top = platTop(pl);
+      if (P.x + P.w / 2 < pl.x || P.x - P.w / 2 > pl.x + pl.w) continue;
+      if (P.vy >= 0 && prevBottom <= top + 2 && P.y >= top) {
+        P.y = top; P.vy = 0; P.onGround = true;
+        if (pl.type === 'ground') P.safeX = P.x;
+      }
+    }
+
+    // fell in a gap → marshmallow bounce back, no penalty
+    if (P.y > H + 160) {
+      sfx.bounce();
+      P.x = P.safeX; P.y = gt - 40; P.vy = -500; P.vx = 0;
+      burst(P.x, gt, 18, '#fff');
+      burst(P.x, gt, 12, '#ffd6ec');
+    }
+
+    // candy pickups
+    for (const cd of candies) {
+      if (cd.got) continue;
+      const cy = gt - cd.up + Math.sin(time * 3 + cd.bob) * 6;
+      const dx = cd.x - P.x, dy = cy - (P.y - P.h * .5);
+      if (dx * dx + dy * dy < 55 * 55) {
+        cd.got = true;
+        if (cd.kind === 'lolli') { choc += 5; sfx.lolli(); burstRainbow(cd.x, cy, 16); }
+        else { choc += 1; sfx.collect(); burst(cd.x, cy, 8, '#8b5a2b'); burst(cd.x, cy, 5, '#ffd6ec'); }
+        document.getElementById('chocPill').textContent = '🍫 ' + choc;
+      }
+    }
+
+    // gummy bear hugs
+    for (const b of bears) {
+      b.step += dt * 3;
+      b.x += b.dir * 40 * dt;
+      if (Math.abs(b.x - b.home) > b.range) b.dir *= -1;
+      if (b.happy > 0) b.happy -= dt;
+      const dx = b.x - P.x, dy = gt - 30 - (P.y - P.h * .5);
+      if (b.happy <= 0 && dx * dx + dy * dy < 70 * 70) {
+        b.happy = 3; choc += 2; sfx.hug();
+        for (let i = 0; i < 6; i++)
+          hearts.push({ x: b.x + (Math.random() - .5) * 40, y: gt - 60,
+                        vy: -60 - Math.random() * 60, life: 1.4 });
+        document.getElementById('chocPill').textContent = '🍫 ' + choc;
+      }
+    }
+
+    // reached the castle!
+    if (P.x >= LEVEL_END - 60) {
+      P.won = true; wonAt = time; sfx.win();
+      for (let i = 0; i < 40; i++)
+        setTimeout(() => burstRainbow(P.x - 100 + Math.random() * 260,
+          gt - 60 - Math.random() * 260, 10), i * 60);
+      setTimeout(showWin, 1800);
+    }
+  } else {
+    P.vx = 0;
+    if (Math.random() < .15) burstRainbow(P.x - 120 + Math.random() * 240, gt - 80 - Math.random() * 200, 6);
+  }
+
+  // camera
+  const target = P.x - W * .38;
+  camX += (target - camX) * Math.min(1, dt * 6);
+  camX = Math.max(-380, Math.min(LEVEL_END + 460 - W, camX));
+
+  // particles
+  for (const p of particles) {
+    p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 600 * dt; p.life -= dt;
+  }
+  particles = particles.filter(p => p.life > 0);
+  for (const h of hearts) { h.y += h.vy * dt; h.life -= dt; }
+  hearts = hearts.filter(h => h.life > 0);
+}
+
+function burst(x, y, n, col) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, s = 80 + Math.random() * 200;
+    particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 120,
+                     life: .5 + Math.random() * .5, col, r: 2 + Math.random() * 4 });
+  }
+}
+function burstRainbow(x, y, n) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, s = 100 + Math.random() * 240;
+    particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 150,
+                     life: .6 + Math.random() * .7, col: RAINBOW[i % 6], r: 3 + Math.random() * 4 });
+  }
+}
+
+/* ---------- drawing ---------- */
+function draw() {
+  const gt = groundTop();
+
+  // candy sky
+  let g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#bfe6ff'); g.addColorStop(.5, '#ffe3f4'); g.addColorStop(1, '#ffd1ea');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+  // far candy hills (parallax)
+  drawHills(gt, .25, '#ffc9e6', 140);
+  drawHills(gt, .45, '#ffb3dc', 90);
+
+  // cotton candy clouds
+  for (let i = 0; i < 8; i++) {
+    const cx = ((i * 520 + 200 - camX * .3) % (W + 700) + W + 700) % (W + 700) - 350;
+    const cy = 60 + (i % 3) * 70 + Math.sin(time * .4 + i) * 8;
+    cloud(cx, cy, 1 + (i % 3) * .3, i % 2 ? '#ffffff' : '#ffe9fb');
+  }
+
+  ctx.save();
+  ctx.translate(-camX, 0);
+
+  // decorations
+  for (const d of decor) {
+    if (d.x < camX - 120 || d.x > camX + W + 120) continue;
+    if (d.kind === 'cane') candyCane(d.x, gt, d.s);
+    else if (d.kind === 'gumdrop') gumdrop(d.x, gt, d.s, d.col);
+    else mintFlower(d.x, gt, d.s);
+  }
+
+  // castle
+  drawCastle(LEVEL_END + 60, gt);
+
+  // licorice platforms
+  for (const pl of platforms) {
+    if (pl.x > camX + W + 100 || pl.x + pl.w < camX - 100) continue;
+    if (pl.type === 'licorice') licoricePlatform(pl.x, platTop(pl), pl.w);
+  }
+
+  // cotton candy ground
+  for (const pl of platforms) {
+    if (pl.type !== 'ground') continue;
+    if (pl.x > camX + W + 100 || pl.x + pl.w < camX - 100) continue;
+    cottonGround(pl.x, gt, pl.w);
+  }
+
+  // candies
+  for (const cd of candies) {
+    if (cd.got || cd.x < camX - 60 || cd.x > camX + W + 60) continue;
+    const cy = gt - cd.up + Math.sin(time * 3 + cd.bob) * 6;
+    if (cd.kind === 'lolli') lollipop(cd.x, cy);
+    else chocolate(cd.x, cy);
+  }
+
+  // gummy bears
+  for (const b of bears)
+    if (b.x > camX - 80 && b.x < camX + W + 80) gummyBear(b, gt);
+
+  // princess!
+  drawPrincess(P.x, P.y, P.face, P.step, P.onGround, P.won);
+
+  // particles + hearts
+  for (const p of particles) {
+    ctx.globalAlpha = Math.min(1, p.life * 2);
+    ctx.fillStyle = p.col;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.font = '22px system-ui';
+  for (const h of hearts) {
+    ctx.globalAlpha = Math.min(1, h.life);
+    ctx.fillText('💗', h.x - 11, h.y);
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
+}
+
+function drawHills(gt, para, col, amp) {
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.moveTo(0, gt);
+  for (let x = 0; x <= W; x += 20) {
+    const wx = x + camX * para;
+    ctx.lineTo(x, gt - amp * (0.55 + .45 * Math.sin(wx * .004)) - 20 * Math.sin(wx * .013));
+  }
+  ctx.lineTo(W, gt); ctx.closePath(); ctx.fill();
+}
+
+function cloud(x, y, s, col) {
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.arc(x, y, 28 * s, 0, 7);
+  ctx.arc(x + 30 * s, y - 12 * s, 24 * s, 0, 7);
+  ctx.arc(x + 58 * s, y, 26 * s, 0, 7);
+  ctx.arc(x + 28 * s, y + 10 * s, 24 * s, 0, 7);
+  ctx.fill();
+}
+
+function cottonGround(x, top, w) {
+  // fluffy pink cotton candy with a licorice crust line
+  const g = ctx.createLinearGradient(0, top, 0, H);
+  g.addColorStop(0, '#ffb6de'); g.addColorStop(.4, '#ff9ed2'); g.addColorStop(1, '#f77fc0');
+  ctx.fillStyle = g;
+  ctx.fillRect(x, top, w, H - top);
+  // fluff bumps
+  ctx.fillStyle = '#ffc9e8';
+  for (let bx = x; bx < x + w; bx += 46)
+    { ctx.beginPath(); ctx.arc(bx + 23, top + 2, 24, Math.PI, 0); ctx.fill(); }
+  // sprinkles
+  ctx.save(); ctx.beginPath(); ctx.rect(x, top, w, H - top); ctx.clip();
+  for (let i = 0; i < w / 30; i++) {
+    const sx = x + (i * 137) % w, sy = top + 30 + ((i * 89) % Math.max(40, H - top - 50));
+    ctx.fillStyle = RAINBOW[i % 6];
+    ctx.save(); ctx.translate(sx, sy); ctx.rotate(i); ctx.fillRect(-5, -2, 10, 4); ctx.restore();
+  }
+  ctx.restore();
+  // red licorice edge rope
+  ctx.strokeStyle = '#e0245e'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (let bx = x; bx <= x + w; bx += 23)
+    ctx.arc(bx + 11, top - 20, 12, Math.PI * .95, Math.PI * .05, false);
+  ctx.stroke();
+}
+
+function licoricePlatform(x, top, w) {
+  // black licorice twist with red stripes
+  ctx.fillStyle = '#2b2330';
+  roundRect(x, top, w, 24, 12); ctx.fill();
+  ctx.save();
+  roundRect(x, top, w, 24, 12); ctx.clip();
+  ctx.strokeStyle = '#ff4d6d'; ctx.lineWidth = 8;
+  for (let sx = x - 24; sx < x + w + 24; sx += 34) {
+    ctx.beginPath(); ctx.moveTo(sx, top + 30); ctx.lineTo(sx + 18, top - 6); ctx.stroke();
+  }
+  ctx.restore();
+  ctx.fillStyle = 'rgba(255,255,255,.25)';
+  roundRect(x + 4, top + 3, w - 8, 6, 3); ctx.fill();
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function chocolate(x, y) {
+  ctx.save(); ctx.translate(x, y);
+  ctx.fillStyle = '#6b3f1d';
+  roundRect(-16, -12, 32, 24, 5); ctx.fill();
+  ctx.fillStyle = '#8b5a2b';
+  roundRect(-13, -9, 26, 18, 3); ctx.fill();
+  ctx.strokeStyle = '#6b3f1d'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(0, 9);
+  ctx.moveTo(-13, 0); ctx.lineTo(13, 0); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.5)';
+  ctx.beginPath(); ctx.arc(-7, -5, 2.5, 0, 7); ctx.fill();
+  ctx.restore();
+}
+
+function lollipop(x, y) {
+  ctx.save(); ctx.translate(x, y);
+  ctx.fillStyle = '#fff';
+  roundRect(-3, 8, 6, 30, 3); ctx.fill();
+  for (let i = 5; i >= 0; i--) {
+    ctx.fillStyle = RAINBOW[i];
+    ctx.beginPath(); ctx.arc(0, -6, 4 + i * 3.4, 0, 7); ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(255,255,255,.55)';
+  ctx.beginPath(); ctx.arc(-7, -13, 5, 0, 7); ctx.fill();
+  ctx.restore();
+}
+
+function candyCane(x, gt, s) {
+  ctx.save(); ctx.translate(x, gt); ctx.scale(s, s);
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 16;
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -110); ctx.arc(18, -110, 18, Math.PI, 0); ctx.stroke();
+  ctx.strokeStyle = '#ff3b5c'; ctx.lineWidth = 16;
+  ctx.setLineDash([14, 14]);
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -110); ctx.arc(18, -110, 18, Math.PI, 0); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function gumdrop(x, gt, s, col) {
+  ctx.save(); ctx.translate(x, gt); ctx.scale(s, s);
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.moveTo(-30, 0);
+  ctx.quadraticCurveTo(-30, -52, 0, -55);
+  ctx.quadraticCurveTo(30, -52, 30, 0);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.45)';
+  for (let i = 0; i < 7; i++) {
+    ctx.beginPath();
+    ctx.arc(-18 + (i * 37) % 36, -12 - (i * 17) % 34, 2.6, 0, 7);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function mintFlower(x, gt, s) {
+  ctx.save(); ctx.translate(x, gt); ctx.scale(s, s);
+  ctx.strokeStyle = '#3ddc55'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -46); ctx.stroke();
+  for (let i = 0; i < 6; i++) {
+    const a = i * Math.PI / 3;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.ellipse(Math.cos(a) * 13, -52 + Math.sin(a) * 13, 9, 5.5, a, 0, 7);
+    ctx.fill();
+  }
+  ctx.fillStyle = '#ff3b5c';
+  ctx.beginPath(); ctx.arc(0, -52, 7, 0, 7); ctx.fill();
+  ctx.restore();
+}
+
+function gummyBear(b, gt) {
+  const y = gt, sq = Math.sin(b.step * 4) * 2;
+  ctx.save(); ctx.translate(b.x, y + sq);
+  ctx.fillStyle = b.col;
+  ctx.globalAlpha = .92;
+  // body / head / ears / arms / legs — squishy translucent gummy look
+  ctx.beginPath(); ctx.ellipse(0, -26, 22, 24, 0, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(0, -58, 17, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(-12, -70, 7, 0, 7); ctx.arc(12, -70, 7, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(-22, -32, 8, 13, .5, 0, 7);
+  ctx.ellipse(22, -32, 8, 13, -.5, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(-11, -5, 9, 8, 0, 0, 7);
+  ctx.ellipse(11, -5, 9, 8, 0, 0, 7); ctx.fill();
+  ctx.globalAlpha = 1;
+  // glossy highlight
+  ctx.fillStyle = 'rgba(255,255,255,.4)';
+  ctx.beginPath(); ctx.ellipse(-7, -62, 5, 3, -.6, 0, 7); ctx.fill();
+  // face
+  ctx.fillStyle = '#4a2040';
+  ctx.beginPath(); ctx.arc(-6, -58, 2.4, 0, 7); ctx.arc(6, -58, 2.4, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#4a2040'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+  ctx.beginPath();
+  if (b.happy > 0) ctx.arc(0, -53, 6, .15 * Math.PI, .85 * Math.PI);
+  else ctx.arc(0, -54, 4.5, .2 * Math.PI, .8 * Math.PI);
+  ctx.stroke();
+  if (b.happy > 0) { ctx.font = '16px system-ui'; ctx.fillText('💕', -8, -84); }
+  ctx.restore();
+}
+
+function drawCastle(x, gt) {
+  ctx.save(); ctx.translate(x, gt);
+  // main keep — wafer pink
+  ctx.fillStyle = '#ffb0d8';
+  roundRect(-130, -240, 260, 240, 10); ctx.fill();
+  ctx.fillStyle = '#ff8fc8';
+  for (let i = 0; i < 6; i++) roundRect(-130 + i * 44 + 8, -252, 28, 20, 5), ctx.fill();
+  // ice-cream-cone towers
+  for (const tx of [-150, 150]) {
+    ctx.fillStyle = '#f6d7b0';
+    roundRect(tx - 30, -300, 60, 300, 8); ctx.fill();
+    ctx.strokeStyle = '#d9ab6b'; ctx.lineWidth = 3;
+    for (let yy = -280; yy < -20; yy += 34)
+      { ctx.beginPath(); ctx.moveTo(tx - 28, yy); ctx.lineTo(tx + 28, yy + 20); ctx.stroke(); }
+    ctx.fillStyle = '#fff0fa';
+    ctx.beginPath(); ctx.moveTo(tx - 36, -300);
+    ctx.quadraticCurveTo(tx, -390, tx + 36, -300); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ff3b5c';
+    ctx.beginPath(); ctx.arc(tx, -368, 12, 0, 7); ctx.fill();
+  }
+  // chocolate door
+  ctx.fillStyle = '#6b3f1d';
+  ctx.beginPath(); ctx.moveTo(-45, 0); ctx.lineTo(-45, -80);
+  ctx.arc(0, -80, 45, Math.PI, 0); ctx.lineTo(45, 0); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#8b5a2b';
+  ctx.beginPath(); ctx.moveTo(-34, 0); ctx.lineTo(-34, -76);
+  ctx.arc(0, -76, 34, Math.PI, 0); ctx.lineTo(34, 0); ctx.closePath(); ctx.fill();
+  // candy windows + flag
+  ctx.fillStyle = '#ffe36e';
+  for (const wx of [-85, 85]) { ctx.beginPath(); ctx.arc(wx, -160, 18, 0, 7); ctx.fill(); }
+  ctx.strokeStyle = '#e0245e'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(0, -252); ctx.lineTo(0, -320); ctx.stroke();
+  ctx.fillStyle = '#ff2d8d';
+  ctx.beginPath(); ctx.moveTo(0, -320); ctx.lineTo(52, -306); ctx.lineTo(0, -292);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+/* ---------- the princess ---------- */
+function drawPrincess(x, y, face, step, onGround, winning) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(face, 1);
+  const swing = onGround ? Math.sin(step * 2) : .6;
+  const hairFlow = Math.sin(time * 6) * 3 + (onGround ? 0 : 6);
+  const bob = onGround ? Math.abs(Math.sin(step * 2)) * 2 : 0;
+  ctx.translate(0, -bob);
+
+  // legs + rainbow heels (tall legs!)
+  for (const side of [-1, 1]) {
+    const lx = side * 7, la = swing * side * (onGround ? .5 : .25);
+    ctx.save();
+    ctx.translate(lx, -40);
+    ctx.rotate(la * .4);
+    ctx.strokeStyle = '#ffeef4'; ctx.lineWidth = 9; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 28); ctx.stroke();
+    // rainbow high heel
+    const hg = ctx.createLinearGradient(-8, 28, 14, 34);
+    RAINBOW.forEach((c, i) => hg.addColorStop(i / 5, c));
+    ctx.fillStyle = hg;
+    ctx.beginPath();
+    ctx.moveTo(-6, 26); ctx.lineTo(12, 26); ctx.lineTo(14, 32);
+    ctx.lineTo(2, 34); ctx.lineTo(0, 40); ctx.lineTo(-4, 40);
+    ctx.lineTo(-6, 32); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  // rainbow dress (A-line with stripes)
+  ctx.save();
+  ctx.translate(0, -88);
+  ctx.beginPath();
+  ctx.moveTo(-8, 12);
+  ctx.quadraticCurveTo(-30, 48, -26, 56);
+  ctx.lineTo(26, 56);
+  ctx.quadraticCurveTo(30, 48, 8, 12);
+  ctx.closePath();
+  ctx.save(); ctx.clip();
+  for (let i = 0; i < 6; i++) {
+    ctx.fillStyle = RAINBOW[i];
+    ctx.fillRect(-34, 12 + i * 7.4, 68, 7.6);
+  }
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 2; ctx.stroke();
+  // bodice
+  ctx.fillStyle = RAINBOW[0];
+  roundRect(-9, -2, 18, 16, 5); ctx.fill();
+  ctx.restore();
+
+  // arms
+  for (const side of [-1, 1]) {
+    const aa = winning ? -2.4 : swing * side * .5 - .3;
+    ctx.save();
+    ctx.translate(side * 9, -96);
+    ctx.rotate(aa * side);
+    ctx.strokeStyle = '#ffeef4'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(side * 4, 20); ctx.stroke();
+    ctx.restore();
+  }
+
+  // rainbow hair — flowing behind
+  ctx.save();
+  ctx.translate(-4, -118);
+  for (let i = 0; i < 6; i++) {
+    ctx.strokeStyle = RAINBOW[i]; ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(2, -6 + i * 2);
+    ctx.quadraticCurveTo(-16 - i * 2, 8 + i * 5 + hairFlow,
+                         -14 - i * 3, 34 + i * 6 + hairFlow * 1.4);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // head — white skin, pink eyes
+  ctx.fillStyle = '#fff5f8';
+  ctx.beginPath(); ctx.arc(0, -118, 15, 0, 7); ctx.fill();
+  // hair top (rainbow cap over head)
+  for (let i = 0; i < 6; i++) {
+    ctx.strokeStyle = RAINBOW[i]; ctx.lineWidth = 4; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(0, -118, 15.5 - i * 1.4, Math.PI * 1.05, Math.PI * 1.95);
+    ctx.stroke();
+  }
+  // pink eyes
+  ctx.fillStyle = '#ff4fa0';
+  ctx.beginPath(); ctx.arc(5, -119, 2.6, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(11, -119, 2.6, 0, 7); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(5.8, -120, .9, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(11.8, -120, .9, 0, 7); ctx.fill();
+  // smile + blush
+  ctx.strokeStyle = '#e0568f'; ctx.lineWidth = 1.8; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(8, -112, 4, .15 * Math.PI, .85 * Math.PI); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,140,190,.4)';
+  ctx.beginPath(); ctx.arc(2, -112, 2.6, 0, 7); ctx.fill();
+
+  // tiara
+  ctx.save();
+  ctx.translate(1, -131);
+  ctx.fillStyle = '#ffd24a';
+  ctx.beginPath();
+  ctx.moveTo(-11, 3);
+  ctx.lineTo(-9, -6); ctx.lineTo(-5, 0);
+  ctx.lineTo(0, -9); ctx.lineTo(5, 0);
+  ctx.lineTo(9, -6); ctx.lineTo(11, 3);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#ff2d8d';
+  ctx.beginPath(); ctx.arc(0, -6, 3, 0, 7); ctx.fill();
+  ctx.restore();
+
+  // sparkle trail when moving fast
+  if (Math.abs(P.vx) > 200 || !onGround) {
+    ctx.fillStyle = 'rgba(255,255,255,.8)';
+    for (let i = 0; i < 2; i++) {
+      const sx = -20 - Math.random() * 14, sy = -20 - Math.random() * 80;
+      ctx.font = '10px system-ui'; ctx.fillText('✦', sx, sy);
+    }
+  }
+  ctx.restore();
+}
+
+/* ---------- overlay / flow ---------- */
+const overlay = document.getElementById('overlay');
+const bigBtn = document.getElementById('bigBtn');
+
+function showWin() {
+  document.getElementById('panelTitle').textContent = '👑 You did it, Princess! 👑';
+  document.getElementById('panelText').innerHTML =
+    'You reached the Candy Castle with <b>🍫 ' + choc + '</b> candies!<br>The whole kingdom is cheering for you! 🎉';
+  bigBtn.textContent = '▶ Play again!';
+  overlay.classList.remove('hidden');
+}
+
+bigBtn.addEventListener('click', () => {
+  ac();
+  buildLevel();
+  P.x = 80; P.y = 0; P.vx = 0; P.vy = 0; P.won = false;
+  P.safeX = 80; camX = -380; choc = 0;
+  document.getElementById('chocPill').textContent = '🍫 0';
+  overlay.classList.add('hidden');
+  running = true;
+});
+
+/* ---------- main loop ---------- */
+buildLevel();
+P.y = 0;
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(.033, (now - last) / 1000);
+  last = now;
+  if (P.y === 0) P.y = groundTop();  // settle on first layout
+  if (running) update(dt); else time += dt;
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('../sw.js', { scope: '../' }).catch(() => {});
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "Emmabug's Candy Kingdom",
+  "short_name": "Emmabug Candy",
+  "description": "A candy side-scroller adventure for Emma",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffe9f5",
+  "theme_color": "#ffd6ec",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

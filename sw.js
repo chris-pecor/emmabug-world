@@ -1,6 +1,7 @@
-const CACHE = 'emmabug-v4';
+const CACHE = 'emmabug-v5';
 const FILES = ['./', './index.html', './icon.svg', './manifest.webmanifest',
-               './sea/', './sea/index.html', './sea/icon.svg', './sea/manifest.webmanifest'];
+               './sea/', './sea/index.html', './sea/icon.svg', './sea/manifest.webmanifest',
+               './candy/', './candy/index.html', './candy/icon.svg', './candy/manifest.webmanifest'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)));
