@@ -108,7 +108,7 @@
 <script>
 'use strict';
 /* ============================================================
-   Emmabug's Candy Kingdom — v5.2
+   Emmabug's Candy Kingdom — v5.3
    2D candy side-scroller. Mobile-first, no fail states.
    Two levels; each castle door opens with a math puzzle.
    ============================================================ */
@@ -197,7 +197,7 @@ document.addEventListener('dblclick', e => e.preventDefault(), { passive: false 
 // floats:  [x, height-above-ground, width] licorice platforms
 const LEVELS = [
   {
-    name: 'Candy Meadow', grade: 5, end: 7400, seed: 20260703,
+    name: 'Candy Meadow', grade: 5, end: 7400, seed: 20260703, night: false,
     sky: ['#bfe6ff','#ffe3f4','#ffd1ea'], hills: ['#ffc9e6','#ffb3dc'],
     grounds: [
       [-400, 1500], [1650, 900], [2700, 800], [3650, 1000],
@@ -214,7 +214,7 @@ const LEVELS = [
     ]
   },
   {
-    name: 'Berry Starlight', grade: 6, end: 8200, seed: 60214,
+    name: 'Berry Starlight', grade: 6, end: 8200, seed: 60214, night: true,
     sky: ['#a9b4ff','#e9c9ff','#ffc4ec'], hills: ['#d1a8f2','#bd8fe6'],
     grounds: [
       [-400, 1300], [1100, 800], [2100, 700], [3010, 850],
@@ -432,6 +432,31 @@ function draw() {
   g.addColorStop(0, L.sky[0]); g.addColorStop(.5, L.sky[1]); g.addColorStop(1, L.sky[2]);
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
 
+  // sun (day) or moon + twinkling stars (night)
+  if (L.night) {
+    for (let i = 0; i < 42; i++) {
+      const sx = ((i * 379 + 100 - camX * .08) % (W + 200) + W + 200) % (W + 200) - 100;
+      const sy = 20 + (i * 137) % Math.max(60, gt - 180);
+      const tw = .35 + .65 * Math.abs(Math.sin(time * 2 + i * 1.7));
+      ctx.fillStyle = 'rgba(255,255,255,' + (tw * .85).toFixed(2) + ')';
+      ctx.beginPath(); ctx.arc(sx, sy, i % 5 ? 1.4 : 2.4, 0, 7); ctx.fill();
+    }
+    const mg = ctx.createRadialGradient(W - 96, 96, 10, W - 96, 96, 90);
+    mg.addColorStop(0, 'rgba(255,255,255,.35)'); mg.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = mg; ctx.beginPath(); ctx.arc(W - 96, 96, 90, 0, 7); ctx.fill();
+    ctx.fillStyle = '#fffbe8';
+    ctx.beginPath(); ctx.arc(W - 96, 96, 34, 0, 7); ctx.fill();
+    ctx.fillStyle = L.sky[0];
+    ctx.beginPath(); ctx.arc(W - 82, 86, 30, 0, 7); ctx.fill();
+  } else {
+    const sg = ctx.createRadialGradient(W - 100, 100, 12, W - 100, 100, 120);
+    sg.addColorStop(0, 'rgba(255,236,150,.55)'); sg.addColorStop(1, 'rgba(255,236,150,0)');
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(W - 100, 100, 120, 0, 7); ctx.fill();
+    const sc = ctx.createRadialGradient(W - 112, 88, 6, W - 100, 100, 46);
+    sc.addColorStop(0, '#fffdf0'); sc.addColorStop(1, '#ffe36e');
+    ctx.fillStyle = sc; ctx.beginPath(); ctx.arc(W - 100, 100, 46, 0, 7); ctx.fill();
+  }
+
   // far candy hills (parallax)
   drawHills(gt, .25, L.hills[0], 140);
   drawHills(gt, .45, L.hills[1], 90);
@@ -468,6 +493,16 @@ function draw() {
     if (pl.type !== 'ground') continue;
     if (pl.x > camX + W + 100 || pl.x + pl.w < camX - 100) continue;
     cottonGround(pl.x, gt, pl.w);
+  }
+
+  // soft shadows ground the characters
+  ctx.fillStyle = 'rgba(150,40,100,.15)';
+  for (const b of bears) {
+    if (b.x < camX - 80 || b.x > camX + W + 80) continue;
+    ctx.beginPath(); ctx.ellipse(b.x, gt + 6, 27, 7, 0, 0, 7); ctx.fill();
+  }
+  if (P.onGround) {
+    ctx.beginPath(); ctx.ellipse(P.x, P.y + 5, 20, 6, 0, 0, 7); ctx.fill();
   }
 
   // candies
@@ -590,6 +625,12 @@ function chocolate(x, y) {
 
 function lollipop(x, y) {
   ctx.save(); ctx.translate(x, y);
+  // dreamy glow so lollipops pop from the background
+  const glow = ctx.createRadialGradient(0, -6, 4, 0, -6, 36);
+  glow.addColorStop(0, 'rgba(255,255,255,.55)');
+  glow.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(0, -6, 36, 0, 7); ctx.fill();
   ctx.fillStyle = '#fff';
   roundRect(-3, 8, 6, 30, 3); ctx.fill();
   for (let i = 5; i >= 0; i--) {
@@ -702,13 +743,26 @@ function drawCastle(x, gt) {
   ctx.fillStyle = '#8b5a2b';
   ctx.beginPath(); ctx.moveTo(-34, 0); ctx.lineTo(-34, -76);
   ctx.arc(0, -76, 34, Math.PI, 0); ctx.lineTo(34, 0); ctx.closePath(); ctx.fill();
-  // candy windows + flag
-  ctx.fillStyle = '#ffe36e';
-  for (const wx of [-85, 85]) { ctx.beginPath(); ctx.arc(wx, -160, 18, 0, 7); ctx.fill(); }
+  // golden door knob
+  ctx.fillStyle = '#ffd24a';
+  ctx.beginPath(); ctx.arc(20, -42, 5, 0, 7); ctx.fill();
+  // candy windows with a warm glow + waving flag
+  for (const wx of [-85, 85]) {
+    const wg = ctx.createRadialGradient(wx, -160, 6, wx, -160, 40);
+    wg.addColorStop(0, 'rgba(255,227,110,.6)'); wg.addColorStop(1, 'rgba(255,227,110,0)');
+    ctx.fillStyle = wg; ctx.beginPath(); ctx.arc(wx, -160, 40, 0, 7); ctx.fill();
+    ctx.fillStyle = '#ffe36e';
+    ctx.beginPath(); ctx.arc(wx, -160, 18, 0, 7); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.6)';
+    ctx.beginPath(); ctx.arc(wx - 6, -166, 5, 0, 7); ctx.fill();
+  }
   ctx.strokeStyle = '#e0245e'; ctx.lineWidth = 4;
   ctx.beginPath(); ctx.moveTo(0, -252); ctx.lineTo(0, -320); ctx.stroke();
+  const fw = Math.sin(time * 4) * 6;
   ctx.fillStyle = '#ff2d8d';
-  ctx.beginPath(); ctx.moveTo(0, -320); ctx.lineTo(52, -306); ctx.lineTo(0, -292);
+  ctx.beginPath(); ctx.moveTo(0, -320);
+  ctx.quadraticCurveTo(30, -316 + fw, 52, -306 + fw);
+  ctx.quadraticCurveTo(30, -300 + fw * .5, 0, -292);
   ctx.closePath(); ctx.fill();
   ctx.restore();
 }
@@ -790,6 +844,8 @@ function drawPrincess(x, y, face, step, onGround, winning) {
   // head — white skin, pink eyes
   ctx.fillStyle = '#fff5f8';
   ctx.beginPath(); ctx.arc(0, -118, 15, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#f0bcd6'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(0, -118, 15, 0, 7); ctx.stroke();
   // hair top — bold rainbow cap over the head
   for (let i = 0; i < 6; i++) {
     ctx.strokeStyle = RAINBOW[i]; ctx.lineWidth = 6; ctx.lineCap = 'round';
@@ -797,6 +853,9 @@ function drawPrincess(x, y, face, step, onGround, winning) {
     ctx.arc(0, -118, 20 - i * 2, Math.PI * 1.05, Math.PI * 1.93);
     ctx.stroke();
   }
+  // glossy hair shine
+  ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(0, -118, 17.5, Math.PI * 1.18, Math.PI * 1.45); ctx.stroke();
   // pink eyes
   ctx.fillStyle = '#ff4fa0';
   ctx.beginPath(); ctx.arc(5, -119, 2.6, 0, 7); ctx.fill();
