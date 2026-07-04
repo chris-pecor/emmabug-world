@@ -69,6 +69,16 @@
     box-shadow:0 5px 0 #c2187a, 0 8px 20px rgba(214,51,132,.4);
   }
   #bigBtn:active { transform:translateY(3px); box-shadow:0 2px 0 #c2187a; }
+  #bigBtn.hidden, #answers.hidden { display:none; }
+
+  #answers { display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin-bottom:6px; }
+  .ansBtn {
+    font-size:clamp(20px,5vw,26px); font-weight:900; color:#fff; border:none; cursor:pointer;
+    background:linear-gradient(180deg,#a78bfa,#7c3aed); border-radius:22px; padding:14px 24px;
+    min-width:96px; box-shadow:0 4px 0 #5b21b6, 0 6px 16px rgba(124,58,237,.35);
+  }
+  .ansBtn:active { transform:translateY(2px); box-shadow:0 2px 0 #5b21b6; }
+  .ansBtn.nope { opacity:.35; }
 </style>
 </head>
 <body>
@@ -76,6 +86,7 @@
 
 <div id="hud">
   <div class="pill" id="chocPill">🍫 0</div>
+  <div class="pill" id="levelPill">⭐ 1</div>
 </div>
 <div class="rbtn" id="muteBtn">🔊</div>
 
@@ -87,7 +98,9 @@
   <div id="panel">
     <h1 id="panelTitle">🍭 Emmabug's Candy Kingdom 🍭</h1>
     <p id="panelText">Help the Princess run and jump through Candy Land!<br>
-    Collect 🍫 chocolates and 🍭 lollipops,<br>hug the gummy bears, and find the Candy Castle!</p>
+    Collect 🍫 and 🍭, hug the gummy bears,<br>
+    and solve the puzzle to open each Candy Castle!</p>
+    <div id="answers" class="hidden"></div>
     <button id="bigBtn">▶ Play!</button>
   </div>
 </div>
@@ -95,8 +108,9 @@
 <script>
 'use strict';
 /* ============================================================
-   Emmabug's Candy Kingdom — v5
+   Emmabug's Candy Kingdom — v5.2
    2D candy side-scroller. Mobile-first, no fail states.
+   Two levels; each castle door opens with a math puzzle.
    ============================================================ */
 
 const canvas = document.getElementById('c');
@@ -178,9 +192,47 @@ bindPad('leftBtn','left'); bindPad('rightBtn','right'); bindPad('jumpBtn','jump'
 window.addEventListener('contextmenu', e => e.preventDefault());
 document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
 
-/* ---------- level ---------- */
-const GROUND_Y = 0;          // ground top is computed from screen height each frame
-const LEVEL_END = 7400;      // castle door x
+/* ---------- levels ---------- */
+// grounds: [x, width] cotton-candy segments with friendly gaps between them
+// floats:  [x, height-above-ground, width] licorice platforms
+const LEVELS = [
+  {
+    name: 'Candy Meadow', grade: 5, end: 7400, seed: 20260703,
+    sky: ['#bfe6ff','#ffe3f4','#ffd1ea'], hills: ['#ffc9e6','#ffb3dc'],
+    grounds: [
+      [-400, 1500], [1650, 900], [2700, 800], [3650, 1000],
+      [4800, 700], [5650, 800], [6600, 1600]
+    ],
+    floats: [
+      [700, 120, 160], [1000, 240, 150], [1350, 130, 170],
+      [1560, 110, 200], [1900, 250, 140], [2250, 130, 180],
+      [2560, 120, 210], [2950, 140, 150], [3250, 260, 170],
+      [3540, 120, 200], [3900, 130, 150], [4200, 250, 160],
+      [4550, 130, 200], [4720, 120, 240], [5050, 140, 150],
+      [5380, 260, 170], [5600, 110, 220], [5900, 130, 150],
+      [6200, 250, 160], [6500, 140, 190], [6900, 260, 150]
+    ]
+  },
+  {
+    name: 'Berry Starlight', grade: 6, end: 8200, seed: 60214,
+    sky: ['#a9b4ff','#e9c9ff','#ffc4ec'], hills: ['#d1a8f2','#bd8fe6'],
+    grounds: [
+      [-400, 1300], [1100, 800], [2100, 700], [3010, 850],
+      [4080, 650], [4950, 700], [5870, 720], [6820, 1500]
+    ],
+    floats: [
+      [650, 130, 150], [950, 150, 130], [1250, 260, 140],
+      [1600, 140, 150], [1930, 130, 130], [2260, 250, 120],
+      [2560, 160, 150], [2860, 280, 130], [3200, 150, 150],
+      [3500, 260, 130], [3800, 140, 140], [3960, 130, 130],
+      [4300, 250, 140], [4600, 160, 130], [4830, 130, 120],
+      [5100, 270, 130], [5400, 150, 140], [5750, 130, 130],
+      [6050, 260, 130], [6350, 150, 140], [6690, 130, 130],
+      [7000, 240, 140], [7350, 160, 150], [7700, 270, 140]
+    ]
+  }
+];
+let levelIdx = 0, LEVEL_END = LEVELS[0].end;
 let platforms = [], candies = [], bears = [], decor = [], particles = [], hearts = [];
 
 function rng(seed) { let s = seed;
@@ -189,45 +241,38 @@ function rng(seed) { let s = seed;
 function buildLevel() {
   platforms = []; candies = []; bears = []; decor = [];
   particles = []; hearts = [];
-  const r = rng(20260703);
+  const L = LEVELS[levelIdx];
+  LEVEL_END = L.end;
+  const r = rng(L.seed);
 
-  // cotton-candy ground segments with friendly gaps between them
-  const grounds = [
-    [-400, 1500], [1650, 900], [2700, 800], [3650, 1000],
-    [4800, 700], [5650, 800], [6600, 1600]
-  ];
-  for (const [x, w] of grounds)
+  for (const [x, w] of L.grounds)
     platforms.push({ x, w, y: 0, h: 999, type: 'ground' });
 
-  // floating licorice platforms (y is height above ground top)
-  const floats = [
-    [700, 120, 160], [1000, 240, 150], [1350, 130, 170],
-    [1560, 110, 200, 'gap'], [1900, 250, 140], [2250, 130, 180],
-    [2560, 120, 210, 'gap'], [2950, 140, 150], [3250, 260, 170],
-    [3540, 120, 200, 'gap'], [3900, 130, 150], [4200, 250, 160],
-    [4550, 130, 200], [4720, 120, 240, 'gap'], [5050, 140, 150],
-    [5380, 260, 170], [5600, 110, 220, 'gap'], [5900, 130, 150],
-    [6200, 250, 160], [6500, 140, 190], [6900, 260, 150]
-  ];
-  for (const [x, up, w] of floats)
+  for (const [x, up, w] of L.floats)
     platforms.push({ x, w, y: up, h: 26, type: 'licorice' });
 
   // chocolates: rows over ground and on platforms
   const chocAt = (x, up) => candies.push({ x, up, kind: 'choc', got: false, bob: r() * 6 });
   const lolliAt = (x, up) => candies.push({ x, up, kind: 'lolli', got: false, bob: r() * 6 });
-  for (const [x, up, w] of floats) {
+  for (const [x, up, w] of L.floats) {
     const n = Math.max(1, Math.floor(w / 90));
     for (let i = 0; i < n; i++) chocAt(x + w * (i + .5) / n, up + 55);
   }
   for (let x = 300; x < LEVEL_END - 300; x += 260)
     if (r() < .75) chocAt(x + r() * 80, 60 + r() * 30);
-  [900, 1780, 2620, 3450, 4380, 5230, 6060, 6820].forEach(x => lolliAt(x, 210));
+  for (let x = 900; x < LEVEL_END - 400; x += 840)
+    lolliAt(x + r() * 60, 210);
 
-  // friendly gummy bears patrolling the ground
+  // friendly gummy bears — one per wide ground segment
   const bearCols = ['#ff5f7e','#3ddc55','#ffb703','#3aa7ff','#b56cff'];
-  [500, 1900, 2900, 3900, 5000, 5850, 6750].forEach((x, i) =>
-    bears.push({ x, dir: i % 2 ? -1 : 1, col: bearCols[i % bearCols.length],
-                 happy: 0, home: x, range: 130 + r() * 80, step: 0 }));
+  let bi = 0;
+  for (const [gx, gw] of L.grounds) {
+    if (gw < 500) continue;
+    const x = gx + gw / 2 + (r() - .5) * gw * .3;
+    bears.push({ x, dir: bi % 2 ? -1 : 1, col: bearCols[bi % bearCols.length],
+                 happy: 0, home: x, range: Math.min(gw * .35, 130 + r() * 80), step: 0 });
+    bi++;
+  }
 
   // background decorations
   for (let x = -300; x < LEVEL_END + 600; x += 150) {
@@ -335,13 +380,13 @@ function update(dt) {
       }
     }
 
-    // reached the castle!
+    // reached the castle — the door asks a puzzle!
     if (P.x >= LEVEL_END - 60) {
-      P.won = true; wonAt = time; sfx.win();
-      for (let i = 0; i < 40; i++)
+      P.won = true; wonAt = time; sfx.lolli();
+      for (let i = 0; i < 14; i++)
         setTimeout(() => burstRainbow(P.x - 100 + Math.random() * 260,
           gt - 60 - Math.random() * 260, 10), i * 60);
-      setTimeout(showWin, 1800);
+      setTimeout(showPuzzle, 1000);
     }
   } else {
     P.vx = 0;
@@ -380,15 +425,16 @@ function burstRainbow(x, y, n) {
 /* ---------- drawing ---------- */
 function draw() {
   const gt = groundTop();
+  const L = LEVELS[levelIdx];
 
   // candy sky
   let g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, '#bfe6ff'); g.addColorStop(.5, '#ffe3f4'); g.addColorStop(1, '#ffd1ea');
+  g.addColorStop(0, L.sky[0]); g.addColorStop(.5, L.sky[1]); g.addColorStop(1, L.sky[2]);
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
 
   // far candy hills (parallax)
-  drawHills(gt, .25, '#ffc9e6', 140);
-  drawHills(gt, .45, '#ffb3dc', 90);
+  drawHills(gt, .25, L.hills[0], 140);
+  drawHills(gt, .45, L.hills[1], 90);
 
   // cotton candy clouds
   for (let i = 0; i < 8; i++) {
@@ -673,9 +719,22 @@ function drawPrincess(x, y, face, step, onGround, winning) {
   ctx.translate(x, y);
   ctx.scale(face, 1);
   const swing = onGround ? Math.sin(step * 2) : .6;
-  const hairFlow = Math.sin(time * 6) * 3 + (onGround ? 0 : 6);
+  const hairFlow = Math.sin(time * 6) * 4 + (onGround ? 0 : 8);
   const bob = onGround ? Math.abs(Math.sin(step * 2)) * 2 : 0;
   ctx.translate(0, -bob);
+
+  // rainbow hair — big flowing mane behind her (drawn first, behind everything)
+  ctx.save();
+  ctx.translate(0, -118);
+  for (let i = 0; i < 6; i++) {
+    ctx.strokeStyle = RAINBOW[i]; ctx.lineWidth = 9; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-3, -12 + i * 3);
+    ctx.quadraticCurveTo(-26 - i * 3, 2 + i * 7 + hairFlow,
+                         -20 - i * 3.5, 46 + i * 6 + hairFlow * 1.5);
+    ctx.stroke();
+  }
+  ctx.restore();
 
   // legs + rainbow heels (tall legs!)
   for (const side of [-1, 1]) {
@@ -728,27 +787,14 @@ function drawPrincess(x, y, face, step, onGround, winning) {
     ctx.restore();
   }
 
-  // rainbow hair — flowing behind
-  ctx.save();
-  ctx.translate(-4, -118);
-  for (let i = 0; i < 6; i++) {
-    ctx.strokeStyle = RAINBOW[i]; ctx.lineWidth = 5; ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(2, -6 + i * 2);
-    ctx.quadraticCurveTo(-16 - i * 2, 8 + i * 5 + hairFlow,
-                         -14 - i * 3, 34 + i * 6 + hairFlow * 1.4);
-    ctx.stroke();
-  }
-  ctx.restore();
-
   // head — white skin, pink eyes
   ctx.fillStyle = '#fff5f8';
   ctx.beginPath(); ctx.arc(0, -118, 15, 0, 7); ctx.fill();
-  // hair top (rainbow cap over head)
+  // hair top — bold rainbow cap over the head
   for (let i = 0; i < 6; i++) {
-    ctx.strokeStyle = RAINBOW[i]; ctx.lineWidth = 4; ctx.lineCap = 'round';
+    ctx.strokeStyle = RAINBOW[i]; ctx.lineWidth = 6; ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.arc(0, -118, 15.5 - i * 1.4, Math.PI * 1.05, Math.PI * 1.95);
+    ctx.arc(0, -118, 20 - i * 2, Math.PI * 1.05, Math.PI * 1.93);
     ctx.stroke();
   }
   // pink eyes
@@ -789,27 +835,137 @@ function drawPrincess(x, y, face, step, onGround, winning) {
   ctx.restore();
 }
 
+/* ---------- castle door puzzles ---------- */
+function makePuzzle(grade) {
+  const R = n => Math.floor(Math.random() * n);
+  let q, ans, wrongs, hint;
+  if (grade === 5) {
+    const t = R(4);
+    if (t === 0) {
+      const a = 12 + R(38), b = 3 + R(6);
+      q = a + ' × ' + b + ' = ?'; ans = a * b;
+      wrongs = [ans + b, ans - b, ans + 10];
+      hint = a + ' × ' + b + ' is ' + a + ' added up ' + b + ' times!';
+    } else if (t === 1) {
+      const b = 3 + R(6), ansv = 4 + R(8), a = b * ansv;
+      q = a + ' ÷ ' + b + ' = ?'; ans = ansv;
+      wrongs = [ans + 1, ans - 1, ans + 2];
+      hint = 'How many ' + b + 's fit inside ' + a + '?';
+    } else if (t === 2) {
+      const a = 2 + R(8), b = 2 + R(8), c = 3 + R(9);
+      q = c + ' + ' + a + ' × ' + b + ' = ?'; ans = c + a * b;
+      wrongs = [(c + a) * b, ans + a, ans - b];
+      hint = 'Do the × part first, then add ' + c + '!';
+    } else {
+      const d = [2, 3, 4, 5][R(4)], mult = 3 + R(10), whole = d * mult;
+      q = 'What is 1/' + d + ' of ' + whole + '?'; ans = mult;
+      wrongs = [ans + d, ans - 1, ans + 2];
+      hint = 'Split ' + whole + ' into ' + d + ' equal parts!';
+    }
+  } else {
+    const t = R(4);
+    if (t === 0) {
+      const p = [10, 20, 25, 50][R(4)], base = 20 * (1 + R(9));
+      q = 'What is ' + p + '% of ' + base + '?'; ans = base * p / 100;
+      wrongs = [ans + 4, ans + 10, Math.max(1, ans - 4)];
+      hint = '10% of ' + base + ' is ' + (base / 10) + ' — build from there!';
+    } else if (t === 1) {
+      const a = 3 + R(7), b = 2 + R(10);
+      q = a + '² + ' + b + ' = ?'; ans = a * a + b;
+      wrongs = [a * 2 + b, ans + a, ans - 1];
+      hint = a + '² means ' + a + ' × ' + a + '!';
+    } else if (t === 2) {
+      const a = 3 + R(7), b = a + 2 + R(8);
+      q = a + ' − ' + b + ' = ?'; ans = a - b;
+      wrongs = [b - a, ans - 1, ans + 2];
+      hint = 'The answer is less than zero!';
+    } else {
+      const a = 6 + R(20), b = 3 + R(8);
+      q = 'You have ' + a + ' candies. You double them, then give ' + b + ' to a bear. How many left?';
+      ans = 2 * a - b;
+      wrongs = [2 * (a - b), a + b, ans + 2];
+      hint = 'First double: ' + a + ' × 2 = ' + (2 * a) + '. Then take away ' + b + '!';
+    }
+  }
+  const opts = [ans];
+  for (const w of wrongs) if (!opts.includes(w)) opts.push(w);
+  let k = 3;
+  while (opts.length < 4) { if (!opts.includes(ans + k)) opts.push(ans + k); k += 3; }
+  for (let i = opts.length - 1; i > 0; i--) {
+    const j = R(i + 1); [opts[i], opts[j]] = [opts[j], opts[i]];
+  }
+  return { q, ans, hint, opts };
+}
+
 /* ---------- overlay / flow ---------- */
 const overlay = document.getElementById('overlay');
 const bigBtn = document.getElementById('bigBtn');
+const panelTitle = document.getElementById('panelTitle');
+const panelText = document.getElementById('panelText');
+const ansDiv = document.getElementById('answers');
+let puzzle = null, tries = 0, nextAction = 'start';
 
-function showWin() {
-  document.getElementById('panelTitle').textContent = '👑 You did it, Princess! 👑';
-  document.getElementById('panelText').innerHTML =
-    'You reached the Candy Castle with <b>🍫 ' + choc + '</b> candies!<br>The whole kingdom is cheering for you! 🎉';
-  bigBtn.textContent = '▶ Play again!';
+function showPuzzle() {
+  puzzle = makePuzzle(LEVELS[levelIdx].grade);
+  tries = 0;
+  panelTitle.textContent = '🔐 Candy Door Puzzle!';
+  panelText.innerHTML = 'Solve it to open the castle door!<br><b style="font-size:1.6em">' + puzzle.q + '</b>';
+  bigBtn.classList.add('hidden');
+  ansDiv.innerHTML = '';
+  for (const o of puzzle.opts) {
+    const b = document.createElement('button');
+    b.className = 'ansBtn'; b.textContent = o;
+    b.addEventListener('click', () => pickAnswer(o, b));
+    ansDiv.appendChild(b);
+  }
+  ansDiv.classList.remove('hidden');
   overlay.classList.remove('hidden');
+}
+
+function pickAnswer(o, btn) {
+  if (o === puzzle.ans) {
+    sfx.win();
+    ansDiv.classList.add('hidden');
+    if (levelIdx < LEVELS.length - 1) {
+      panelTitle.textContent = '🎉 The door opens! 🎉';
+      panelText.innerHTML = 'You solved it — so smart!<br>Next stop: <b>' + LEVELS[levelIdx + 1].name + '</b> ⭐';
+      bigBtn.textContent = '▶ Level ' + (levelIdx + 2) + '!';
+      nextAction = 'next';
+    } else {
+      panelTitle.textContent = '👑 You did it, Princess! 👑';
+      panelText.innerHTML = 'You solved every puzzle and beat Candy Kingdom with <b>🍫 ' + choc +
+        '</b> candies!<br>The whole kingdom is cheering for you! 🎉';
+      bigBtn.textContent = '▶ Play again!';
+      nextAction = 'restart';
+    }
+    bigBtn.classList.remove('hidden');
+  } else {
+    tries++;
+    sfx.bounce();
+    btn.classList.add('nope'); btn.disabled = true;
+    panelTitle.textContent = tries >= 2 ? '💡 Hint!' : '💪 Almost! Try again!';
+    if (tries >= 2)
+      panelText.innerHTML = puzzle.hint + '<br><b style="font-size:1.6em">' + puzzle.q + '</b>';
+  }
 }
 
 bigBtn.addEventListener('click', () => {
   ac();
+  if (nextAction === 'next') levelIdx++;
+  else { levelIdx = 0; choc = 0; }
+  startLevel();
+});
+
+function startLevel() {
   buildLevel();
-  P.x = 80; P.y = 0; P.vx = 0; P.vy = 0; P.won = false;
-  P.safeX = 80; camX = -380; choc = 0;
-  document.getElementById('chocPill').textContent = '🍫 0';
+  P.x = 80; P.y = groundTop(); P.vx = 0; P.vy = 0; P.won = false;
+  P.safeX = 80; camX = -380;
+  document.getElementById('chocPill').textContent = '🍫 ' + choc;
+  document.getElementById('levelPill').textContent = '⭐ ' + (levelIdx + 1);
+  ansDiv.classList.add('hidden');
   overlay.classList.add('hidden');
   running = true;
-});
+}
 
 /* ---------- main loop ---------- */
 buildLevel();
