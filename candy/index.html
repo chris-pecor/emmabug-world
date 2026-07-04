@@ -188,7 +188,7 @@
 <script>
 'use strict';
 /* ============================================================
-   Emmabug's Candy Kingdom — v6.0
+   Emmabug's Candy Kingdom — v6.1
    2D candy side-scroller. Mobile-first, no fail states.
    Two levels; each castle door opens with a sliding-tile puzzle.
    Giant gumdrop trampolines give a super bounce.
@@ -1285,7 +1285,9 @@ window.addEventListener('beforeunload', () => { try { if (mp.peer) mp.peer.destr
 
 /* ----- state sync ----- */
 function ownState() {
-  return { x: Math.round(P.x), y: Math.round(P.y), f: P.face, g: P.onGround ? 1 : 0,
+  // y is sent RELATIVE to the ground line — every device has a different
+  // screen height, so absolute pixels would float friends into the sky
+  return { x: Math.round(P.x), y: Math.round(P.y - groundTop()), f: P.face, g: P.onGround ? 1 : 0,
            l: levelIdx, n: mp.name, s: Math.round(P.step * 10) };
 }
 function mpSendState() {
@@ -1338,18 +1340,19 @@ function drawFriends() {
     const f = mp.roster[k];
     if (f.dx === undefined || f.l !== levelIdx) continue;
     if (f.dx < camX - 120 || f.dx > camX + W + 120) continue;
+    const fy = groundTop() + f.dy;   // re-anchor to THIS device's ground line
     ctx.save();
     ctx.globalAlpha = .85;
-    drawPrincess(f.dx, f.dy, f.f || 1, f.ds || 0, !!f.g, false, palFor(+k), true);
+    drawPrincess(f.dx, fy, f.f || 1, f.ds || 0, !!f.g, false, palFor(+k), true);
     ctx.restore();
     if (f.n != null && MP_NAMES[f.n]) {
       const label = MP_NAMES[f.n][0] + ' ' + MP_NAMES[f.n][1];
       ctx.font = '700 14px system-ui';
       const tw = ctx.measureText(label).width;
       ctx.fillStyle = 'rgba(255,255,255,.8)';
-      roundRect(f.dx - tw / 2 - 8, f.dy - 166, tw + 16, 22, 11); ctx.fill();
+      roundRect(f.dx - tw / 2 - 8, fy - 166, tw + 16, 22, 11); ctx.fill();
       ctx.fillStyle = '#d63384';
-      ctx.fillText(label, f.dx - tw / 2, f.dy - 150);
+      ctx.fillText(label, f.dx - tw / 2, fy - 150);
     }
   }
 }
@@ -1363,10 +1366,15 @@ function mpReact(i) {
 }
 function mpShowReaction(slot, i) {
   const own = slot === mp.slot;
-  const f = own ? { dx: P.x, dy: P.y } : mp.roster[slot];
-  if (f && f.dx !== undefined) {
+  let px, py;
+  if (own) { px = P.x; py = P.y; }
+  else {
+    const f = mp.roster[slot];
+    if (f && f.dx !== undefined) { px = f.dx; py = groundTop() + f.dy; }
+  }
+  if (px !== undefined) {
     for (let k = 0; k < 5; k++)
-      hearts.push({ x: f.dx + (Math.random() - .5) * 50, y: f.dy - 120 - Math.random() * 40,
+      hearts.push({ x: px + (Math.random() - .5) * 50, y: py - 120 - Math.random() * 40,
                     vy: -60 - Math.random() * 50, life: 1.5, e: MP_EMOJI[i] });
   }
   sfx.hug();
