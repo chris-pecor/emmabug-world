@@ -48,20 +48,34 @@
   #rx2 { bottom:calc(144px + env(safe-area-inset-bottom)); }
   #roomPill.hidden { display:none; }
 
-  #mpOverlay, #petOverlay {
+  #mpOverlay, #petOverlay, #wishOverlay {
     position:fixed; inset:0; z-index:30; display:flex; align-items:center; justify-content:center;
     background:rgba(180,120,220,.45); backdrop-filter:blur(3px); padding:16px;
   }
-  #mpOverlay.hidden, #petOverlay.hidden { display:none; }
-  #mpBox, #petBox {
+  #mpOverlay.hidden, #petOverlay.hidden, #wishOverlay.hidden { display:none; }
+  #mpBox, #petBox, #wishBox {
     background:linear-gradient(160deg,#fff0fa,#ffe3f2 55%,#e9d5ff);
     border:4px solid #ff8fc8; border-radius:26px; text-align:center;
     width:min(430px,94vw); max-height:88vh; overflow-y:auto;
     padding:22px 18px; box-shadow:0 10px 40px rgba(214,51,132,.35); position:relative;
   }
-  #mpBox h1, #petBox h1 { font-size:clamp(24px,5.5vw,32px); color:#d63384; margin:0 26px 10px; text-shadow:0 2px 0 #fff; }
-  #mpBox p, #petBox p { font-size:clamp(15px,3.8vw,18px); color:#8b3a72; margin-bottom:12px; line-height:1.4; }
+  #mpBox h1, #petBox h1, #wishBox h1 { font-size:clamp(24px,5.5vw,32px); color:#d63384; margin:0 26px 10px; text-shadow:0 2px 0 #fff; }
+  #mpBox p, #petBox p, #wishBox p { font-size:clamp(15px,3.8vw,18px); color:#8b3a72; margin-bottom:12px; line-height:1.4; }
   .petCell { font-size:26px; line-height:1.25; }
+  #tabRow { display:flex; gap:8px; justify-content:center; margin-bottom:12px; }
+  .tabBtn {
+    border:3px solid #ffc2e0; background:#fff; border-radius:18px; padding:8px 16px;
+    font-size:16px; font-weight:800; color:#8b3a72; cursor:pointer;
+  }
+  .tabBtn.sel { border-color:#f0359b; background:#ffd6ec; }
+  .wishRow {
+    display:flex; align-items:center; gap:10px; text-align:left;
+    background:rgba(255,255,255,.7); border:3px solid #ffc2e0; border-radius:16px;
+    padding:10px 14px; margin-bottom:10px; font-size:17px; font-weight:700; color:#8b3a72;
+  }
+  .wishRow.done { border-color:#3ddc55; background:#eafff0; }
+  .wishRow .we { font-size:26px; }
+  .wishRow .wp { margin-left:auto; font-weight:900; color:#d63384; white-space:nowrap; }
   #lvlRow { display:flex; justify-content:center; gap:10px; margin-bottom:14px; }
   #lvlRow.hidden { display:none; }
   .lvlBtn {
@@ -100,8 +114,8 @@
   }
 
   #hud {
-    position:fixed; top:calc(12px + env(safe-area-inset-top)); left:12px; z-index:10;
-    display:flex; gap:8px; align-items:center;
+    position:fixed; top:calc(12px + env(safe-area-inset-top)); left:12px; z-index:22;
+    display:flex; gap:8px; align-items:center;   /* z 22: tappable above the start overlay, like .rbtn */
   }
   .pill {
     background:rgba(255,255,255,.88); border:3px solid #ffc2e0; border-radius:20px;
@@ -152,6 +166,7 @@
   <div class="pill" id="chocPill">🍫 0</div>
   <div class="pill" id="starPill">🌟 0</div>
   <div class="pill" id="levelPill">🏰 1</div>
+  <div class="pill" id="wishPill">📜 0/3</div>
   <div class="pill hidden" id="roomPill">🏯</div>
 </div>
 <div class="rbtn" id="muteBtn">🔊</div>
@@ -162,6 +177,7 @@
 <div class="rxn hidden" id="rx2">👋</div>
 <div id="mpOverlay" class="hidden"><div id="mpBox"></div></div>
 <div id="petOverlay" class="hidden"><div id="petBox"></div></div>
+<div id="wishOverlay" class="hidden"><div id="wishBox"></div></div>
 
 <div class="padBtn" id="leftBtn">◀</div>
 <div class="padBtn" id="rightBtn">▶</div>
@@ -175,14 +191,16 @@
     and find the 3 hidden stars in every land! 🌟</p>
     <div id="lvlRow"></div>
     <button id="bigBtn">▶ Play!</button>
-    <div id="ver">v7.2</div>
+    <div id="ver">v8.0</div>
   </div>
 </div>
 
 <script>
 'use strict';
 /* ============================================================
-   Princess Emma's Candy Kingdom — v7.2
+   Princess Emma's Candy Kingdom — v8.0
+   Dress shop (candy buys outfits), daily wishes (3 date-seeded goals),
+   secret candy-fountain door behind every start cake.
    2D candy side-scroller. Mobile-first, no fail states.
    Four lands; reaching each castle triggers a fireworks celebration.
    Gumdrop trampolines, moving platforms, bop-able grumpy gumballs,
@@ -360,15 +378,85 @@ const LEVELS = [
 ];
 let levelIdx = 0, LEVEL_END = LEVELS[0].end;
 let platforms = [], candies = [], bears = [], decor = [], particles = [], hearts = [], springs = [];
-let grumps = [], starItems = [];
+let grumps = [], starItems = [], secretFound = false;
 
 /* ---------- persistent progress ---------- */
 let stars = 0, eggs = 0, pets = [], activePet = -1, maxLevel = 0, starsGot = {};
+
+// dress shop — [name, emoji, price, 6-color palette for dress/hair/heels]
+const OUTFITS = [
+  ['Rainbow',    '🌈', 0,   ['#ff3b6b','#ff9f1c','#ffd60a','#3ddc55','#3aa7ff','#8f5bff']],
+  ['Bubblegum',  '💗', 60,  ['#ff5fa2','#ff8fc8','#ffc2e0','#ff2d8d','#ffb3dc','#e0568f']],
+  ['Mermaid',    '🧜‍♀️', 120, ['#2aa7d8','#3ddcc9','#7fe8d8','#4fb8ff','#8f5bff','#35c9a0']],
+  ['Sunset',     '🌅', 200, ['#ff5f6d','#ff9f1c','#ffd60a','#ff7ab8','#ff8c42','#ffb703']],
+  ['Midnight',   '✨', 320, ['#8f5bff','#4b3b8f','#b76dff','#3a2d6e','#6d5bd0','#2d2352']],
+  ['Royal Gold', '👑', 500, ['#ffd24a','#ffb703','#ffe36e','#e0a800','#fff0b3','#d99000']],
+];
+let outfits = [0], activeOutfit = 0;
+
+// daily wishes — 3 goals a day, same for the whole family (seeded by the date)
+const WISH_DEFS = {
+  bop:    ['😤', 'Bop @ grumpy gumballs'],
+  hug:    ['🐻', 'Hug @ gummy bears'],
+  candy:  ['🍫', 'Collect @ candies'],
+  star:   ['🌟', 'Find @ hidden stars'],
+  spring: ['🍬', 'Bounce on @ gumdrops'],
+  castle: ['🏰', 'Reach @ candy castle'],
+};
+const WISH_NEED = { bop: 4, hug: 5, candy: 40, star: 2, spring: 3, castle: 1 };
+let wishes = [], wishProg = {}, wishAward = [false, false, false], wishDate = '';
+
+let toastMsg = '', toastAt = -9;
+function toast(m) { toastMsg = m; toastAt = time; }
+
+function setupWishes() {
+  const today = new Date().toISOString().slice(0, 10);
+  if (wishDate !== today) {
+    wishDate = today; wishProg = {}; wishAward = [false, false, false];
+  }
+  let hsh = 0;
+  for (const c of today) hsh = (hsh * 31 + c.charCodeAt(0)) >>> 0;
+  const keys = Object.keys(WISH_DEFS);
+  wishes = [];
+  let i = 0;
+  while (wishes.length < 3) {
+    const k = keys[(hsh + i * 7) % keys.length];
+    if (!wishes.includes(k)) wishes.push(k);
+    i++;
+  }
+  syncWishPill();
+}
+function wishCount() { return wishAward.filter(Boolean).length; }
+function syncWishPill() {
+  document.getElementById('wishPill').textContent = '📜 ' + wishCount() + '/3';
+}
+function wishBump(k, n) {
+  if (!wishes.includes(k)) return;
+  wishProg[k] = (wishProg[k] || 0) + n;
+  const i = wishes.indexOf(k);
+  if (!wishAward[i] && wishProg[k] >= WISH_NEED[k]) {
+    wishAward[i] = true;
+    choc += 60;
+    document.getElementById('chocPill').textContent = '🍫 ' + choc;
+    sfx.star();
+    toast('📜 Wish come true! +60 🍫');
+    if (wishCount() === 3) {
+      eggs++;
+      document.getElementById('petBtn').classList.add('pulse');
+      setTimeout(() => { toast('🌟 ALL wishes done! Bonus 🥚!'); }, 1700);
+      sfx.win();
+    }
+    syncWishPill();
+  }
+  saveGame();
+}
+
 const SAVE_KEY = 'emmabug-candy-progress';
 function saveGame() {
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(
-      { choc, stars, eggs, pets, activePet, maxLevel, starsGot, muted }));
+      { choc, stars, eggs, pets, activePet, maxLevel, starsGot, muted,
+        outfits, activeOutfit, wishDate, wishProg, wishAward }));
   } catch (e) {}
 }
 function loadGame() {
@@ -378,6 +466,11 @@ function loadGame() {
     choc = s.choc || 0; stars = s.stars || 0; eggs = s.eggs || 0;
     pets = s.pets || []; activePet = (s.activePet !== undefined) ? s.activePet : -1;
     maxLevel = s.maxLevel || 0; starsGot = s.starsGot || {}; muted = !!s.muted;
+    outfits = s.outfits || [0];
+    if (!outfits.includes(0)) outfits.unshift(0);
+    activeOutfit = OUTFITS[s.activeOutfit] ? s.activeOutfit : 0;
+    wishDate = s.wishDate || ''; wishProg = s.wishProg || {};
+    wishAward = Array.isArray(s.wishAward) ? s.wishAward : [false, false, false];
   } catch (e) {}
 }
 
@@ -387,6 +480,7 @@ function rng(seed) { let s = seed;
 function buildLevel() {
   platforms = []; candies = []; bears = []; decor = [];
   particles = []; hearts = []; springs = []; grumps = []; starItems = [];
+  secretFound = false;
   const L = LEVELS[levelIdx];
   LEVEL_END = L.end;
   const r = rng(L.seed);
@@ -544,6 +638,7 @@ function update(dt) {
         document.getElementById('starPill').textContent = '🌟 ' + stars;
         sfx.star();
         burstRainbow(st.x, sy, 24);
+        wishBump('star', 1);
         saveGame();
       }
     }
@@ -561,6 +656,7 @@ function update(dt) {
         document.getElementById('chocPill').textContent = '🍫 ' + choc;
         P.vy = -720;
         sfx.bop();
+        wishBump('bop', 1);
         burst(g.x, gt - 30, 10, g.col);
         burst(g.x, gt - 30, 6, '#fff');
       } else if (g.cool <= 0 && Math.abs(dx) < 44 && P.y >= gt - 30) {
@@ -576,7 +672,19 @@ function update(dt) {
       if (P.vy > -100 && Math.abs(P.x - s.x) < 42 && P.y > gt - 85 && P.y < gt + 10) {
         P.y = gt - 74; P.vy = -1500; P.onGround = false; s.sq = .35;
         sfx.spring(); burstRainbow(s.x, gt - 70, 14);
+        wishBump('spring', 1);
       }
+    }
+
+    // psst… the secret door behind the birthday cake!
+    if (!secretFound && P.x < -210) {
+      secretFound = true;
+      toast('🤫 Secret candy fountain!');
+      sfx.win(); sfx.lolli();
+      burstRainbow(-255, gt - 120, 30);
+      for (let i = 0; i < 16 + levelIdx * 4; i++)
+        candies.push({ x: -300 + Math.random() * 560, up: 50 + Math.random() * 240,
+                       kind: Math.random() < .18 ? 'lolli' : 'choc', got: false, bob: Math.random() * 6 });
     }
 
     // fell in a gap → marshmallow bounce back, no penalty
@@ -600,6 +708,7 @@ function update(dt) {
         cd.got = true;
         const gain = cd.kind === 'lolli' ? (hasPow('sweet') ? 10 : 5) : 1;
         choc += gain;
+        wishBump('candy', gain);
         if (cd.kind === 'lolli') { sfx.lolli(); burstRainbow(cd.x, cy, hasPow('sweet') ? 26 : 16); }
         else { sfx.collect(); burst(cd.x, cy, 8, '#8b5a2b'); burst(cd.x, cy, 5, '#ffd6ec'); }
         mpCandy(gain);
@@ -622,6 +731,7 @@ function update(dt) {
       const dx = b.x - P.x, dy = gt - 30 - (P.y - P.h * .5);
       if (b.happy <= 0 && dx * dx + dy * dy < 70 * 70) {
         b.happy = 3;
+        wishBump('hug', 1);
         if (b.quest && !b.quest.done) {
           const need = questNeed(b);   // Shelly negotiates a discount
           if (choc >= need) {
@@ -652,6 +762,7 @@ function update(dt) {
     if (P.x >= LEVEL_END - 60) {
       P.won = true; wonAt = time;
       wonMsg = PRAISE[Math.floor(Math.random() * PRAISE.length)];
+      wishBump('castle', 1);
       sfx.win();
       for (let i = 0; i < 26; i++)
         setTimeout(() => { sfx.collect(); burstRainbow(P.x - 160 + Math.random() * 340,
@@ -769,6 +880,9 @@ function draw() {
   // castle
   drawCastle(LEVEL_END + 60, gt);
 
+  // the secret door hiding behind the birthday cake
+  if (camX < 500) drawSecretDoor(gt);
+
   // licorice platforms
   for (const pl of platforms) {
     if (pl.x > camX + W + 100 || pl.x + pl.w < camX - 100) continue;
@@ -858,8 +972,9 @@ function draw() {
   // friend princesses from the candy room
   drawFriends();
 
-  // princess!
-  drawPrincess(P.x, P.y, P.face, P.step, P.onGround, P.won);
+  // princess! (wearing her chosen dress)
+  drawPrincess(P.x, P.y, P.face, P.step, P.onGround, P.won,
+               (OUTFITS[activeOutfit] || OUTFITS[0])[3], false);
 
   // her pet, trotting along behind
   if (activePet >= 0 && PETS[activePet]) {
@@ -920,6 +1035,23 @@ function draw() {
   ctx.globalAlpha = 1;
 
   ctx.restore();
+
+  // toast banner (wish rewards, secrets) — screen space
+  if (time - toastAt < 2.4) {
+    const tt = time - toastAt;
+    const a = Math.min(1, tt * 4) * Math.min(1, (2.4 - tt) * 2);
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.translate(W / 2, H * .14);
+    ctx.font = '900 ' + Math.round(Math.min(W * .05, 30)) + 'px system-ui';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const tw = ctx.measureText(toastMsg).width;
+    ctx.fillStyle = 'rgba(255,255,255,.9)';
+    roundRect(-tw / 2 - 18, -24, tw + 36, 48, 24); ctx.fill();
+    ctx.fillStyle = '#d63384';
+    ctx.fillText(toastMsg, 0, 0);
+    ctx.restore();
+  }
 
   // big bouncing praise while the celebration plays (screen space)
   if (P.won && running) {
@@ -1097,6 +1229,30 @@ function drawSpring(s, gt) {
   ctx.font = '900 20px system-ui';
   ctx.textAlign = 'center';
   ctx.fillText('★', 0, -20);
+  ctx.restore();
+}
+
+function drawSecretDoor(gt) {
+  ctx.save(); ctx.translate(-255, gt);
+  const glow = secretFound ? 0 : (.4 + Math.sin(time * 3) * .25);
+  if (glow > 0) {
+    const g = ctx.createRadialGradient(0, -35, 5, 0, -35, 62);
+    g.addColorStop(0, 'rgba(255,150,220,' + glow.toFixed(2) + ')');
+    g.addColorStop(1, 'rgba(255,150,220,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, -35, 62, 0, 7); ctx.fill();
+  }
+  ctx.fillStyle = secretFound ? '#3a2415' : '#5a3a24';
+  ctx.beginPath(); ctx.moveTo(-22, 0); ctx.lineTo(-22, -48);
+  ctx.arc(0, -48, 22, Math.PI, 0); ctx.lineTo(22, 0); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#ffd24a';
+  ctx.beginPath(); ctx.arc(10, -26, 3.5, 0, 7); ctx.fill();
+  if (!secretFound) {
+    ctx.font = '16px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.globalAlpha = Math.min(1, glow + .3);
+    ctx.fillText('✨', 0, -74 + Math.sin(time * 2) * 4);
+    ctx.globalAlpha = 1;
+  }
   ctx.restore();
 }
 
@@ -1457,25 +1613,42 @@ petBtn.addEventListener('click', () => {
   petOverlay.classList.remove('hidden');
 });
 
+let petTab = 'pets';
 function renderPets() {
-  let h = '<button class="mpX" id="petXBtn">❌</button><h1>🐾 My Pets</h1>';
+  let h = '<button class="mpX" id="petXBtn">❌</button>' +
+    '<h1>' + (petTab === 'pets' ? '🐾 My Pets' : '👗 Dress Shop') + '</h1>' +
+    '<div id="tabRow">' +
+    '<button class="tabBtn' + (petTab === 'pets' ? ' sel' : '') + '" data-t="pets">🐾 Pets</button>' +
+    '<button class="tabBtn' + (petTab === 'shop' ? ' sel' : '') + '" data-t="shop">👗 Dresses</button></div>';
   if (petMsg) h += '<p class="mpMsg">' + petMsg + '</p>';
-  h += '<p>🥚 Eggs: <b>' + eggs + '</b></p>';
-  h += eggs > 0
-    ? '<button class="mpBtn2" id="hatchBtn">🥚 Hatch an egg!</button>'
-    : '<p>Bring candies to a gummy bear<br>with a 🍫→🥚 bubble to earn eggs!</p>';
-  h += '<p>Tap a pet to bring it along:</p><div id="nameGrid">' +
-    PETS.map((p, i) => {
-      if (!pets.includes(i)) return '<button class="nameBtn petCell" disabled>❓</button>';
-      return '<button class="nameBtn petCell' + (activePet === i ? ' sel' : '') +
-             '" data-i="' + i + '">' + p[0] + '<br>' + p[1] + '</button>';
-    }).join('') + '</div>';
-  if (activePet >= 0 && PETS[activePet])
-    h += '<p class="mpMsg">✨ ' + PETS[activePet][1] + ': ' + PETS[activePet][4] + '</p>';
-  else if (pets.length)
-    h += '<p>Every pet has a special power! ✨</p>';
+  if (petTab === 'pets') {
+    h += '<p>🥚 Eggs: <b>' + eggs + '</b></p>';
+    h += eggs > 0
+      ? '<button class="mpBtn2" id="hatchBtn">🥚 Hatch an egg!</button>'
+      : '<p>Bring candies to a gummy bear<br>with a 🍫→🥚 bubble to earn eggs!</p>';
+    h += '<p>Tap a pet to bring it along:</p><div id="nameGrid">' +
+      PETS.map((p, i) => {
+        if (!pets.includes(i)) return '<button class="nameBtn petCell" disabled>❓</button>';
+        return '<button class="nameBtn petCell' + (activePet === i ? ' sel' : '') +
+               '" data-i="' + i + '">' + p[0] + '<br>' + p[1] + '</button>';
+      }).join('') + '</div>';
+    if (activePet >= 0 && PETS[activePet])
+      h += '<p class="mpMsg">✨ ' + PETS[activePet][1] + ': ' + PETS[activePet][4] + '</p>';
+    else if (pets.length)
+      h += '<p>Every pet has a special power! ✨</p>';
+  } else {
+    h += '<p>You have <b>🍫 ' + choc + '</b></p><div id="nameGrid">' +
+      OUTFITS.map((o, i) => {
+        const owned = outfits.includes(i);
+        return '<button class="nameBtn petCell' + (activeOutfit === i ? ' sel' : '') +
+               '" data-o="' + i + '">' + o[1] + '<br>' + o[0] +
+               (owned ? '' : '<br>🍫' + o[2]) + '</button>';
+      }).join('') + '</div><p>New dresses change her hair and heels too! 💇‍♀️👠</p>';
+  }
   petBox.innerHTML = h;
   document.getElementById('petXBtn').addEventListener('click', () => petOverlay.classList.add('hidden'));
+  for (const b of petBox.querySelectorAll('.tabBtn'))
+    b.addEventListener('click', () => { petTab = b.dataset.t; petMsg = ''; sfx.collect(); renderPets(); });
   const hb = document.getElementById('hatchBtn');
   if (hb) hb.addEventListener('click', hatchEgg);
   for (const b of petBox.querySelectorAll('.nameBtn[data-i]'))
@@ -1486,6 +1659,47 @@ function renderPets() {
       saveGame();
       renderPets();
     });
+  for (const b of petBox.querySelectorAll('.nameBtn[data-o]'))
+    b.addEventListener('click', () => {
+      const i = +b.dataset.o;
+      if (outfits.includes(i)) {
+        activeOutfit = i;
+        petMsg = '';
+        sfx.collect();
+      } else if (choc >= OUTFITS[i][2]) {
+        choc -= OUTFITS[i][2];
+        outfits.push(i);
+        activeOutfit = i;
+        document.getElementById('chocPill').textContent = '🍫 ' + choc;
+        petMsg = '🎉 New dress: ' + OUTFITS[i][0] + '! ' + OUTFITS[i][1];
+        sfx.win();
+      } else {
+        petMsg = 'You need ' + (OUTFITS[i][2] - choc) + ' more 🍫 for ' + OUTFITS[i][0] + '!';
+        sfx.bounce();
+      }
+      saveGame();
+      renderPets();
+    });
+}
+
+/* ---------- wish scroll panel ---------- */
+const wishOverlay = document.getElementById('wishOverlay');
+document.getElementById('wishPill').addEventListener('click', () => {
+  ac(); renderWishes(); wishOverlay.classList.remove('hidden');
+});
+function renderWishes() {
+  let h = '<button class="mpX" id="wishXBtn">❌</button><h1>📜 Today\'s Wishes</h1>' +
+    '<p>Finish a wish for <b>+60 🍫</b><br>Finish all three for a bonus 🥚!</p>';
+  wishes.forEach((k, i) => {
+    const need = WISH_NEED[k], p = Math.min(need, wishProg[k] || 0);
+    h += '<div class="wishRow' + (wishAward[i] ? ' done' : '') + '">' +
+      '<span class="we">' + WISH_DEFS[k][0] + '</span>' +
+      '<span>' + WISH_DEFS[k][1].replace('@', need) + '</span>' +
+      '<span class="wp">' + (wishAward[i] ? '✅' : p + ' / ' + need) + '</span></div>';
+  });
+  h += '<p>New wishes every day! 🌈</p>';
+  document.getElementById('wishBox').innerHTML = h;
+  document.getElementById('wishXBtn').addEventListener('click', () => wishOverlay.classList.add('hidden'));
 }
 
 function hatchEgg() {
@@ -1651,7 +1865,7 @@ function ownState() {
   // y is sent RELATIVE to the ground line — every device has a different
   // screen height, so absolute pixels would float friends into the sky
   return { x: Math.round(P.x), y: Math.round(P.y - groundTop()), f: P.face, g: P.onGround ? 1 : 0,
-           l: levelIdx, n: mp.name, s: Math.round(P.step * 10), p: activePet };
+           l: levelIdx, n: mp.name, s: Math.round(P.step * 10), p: activePet, o: activeOutfit };
 }
 function mpSendState() {
   if (!mp.on) return;
@@ -1663,7 +1877,7 @@ function mpBroadcast() {
   const r = {};
   for (const k in mp.roster) {
     const f = mp.roster[k];
-    r[k] = { x: f.x, y: f.y, f: f.f, g: f.g, l: f.l, n: f.n, s: f.s, p: f.p };
+    r[k] = { x: f.x, y: f.y, f: f.f, g: f.g, l: f.l, n: f.n, s: f.s, p: f.p, o: f.o };
   }
   const msg = { t: 'r', r, rc: mp.roomCandy };
   for (const c of mp.conns) if (c.open) c.send(msg);
@@ -1706,7 +1920,8 @@ function drawFriends() {
     const fy = groundTop() + f.dy;   // re-anchor to THIS device's ground line
     ctx.save();
     ctx.globalAlpha = .85;
-    drawPrincess(f.dx, fy, f.f || 1, f.ds || 0, !!f.g, false, palFor(+k), true);
+    const fpal = (f.o != null && OUTFITS[f.o]) ? OUTFITS[f.o][3] : palFor(+k);
+    drawPrincess(f.dx, fy, f.f || 1, f.ds || 0, !!f.g, false, fpal, true);
     ctx.restore();
     if (f.p != null && f.p >= 0 && PETS[f.p]) {
       ctx.font = '26px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -1835,6 +2050,7 @@ if (/^[A-Z2-9]{4}$/.test(roomParam)) {
 
 /* ---------- main loop ---------- */
 loadGame();
+setupWishes();
 setInterval(saveGame, 8000);
 document.addEventListener('visibilitychange', () => { if (document.hidden) saveGame(); });
 muteBtn.textContent = muted ? '🔇' : '🔊';
