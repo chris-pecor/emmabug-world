@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#f9f3e7">
 <title>Candy Meadow · Emmabug's World</title>
-<link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="preview/style.css">
+<link rel="icon" href="../icon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 <canvas id="game" tabindex="-1" aria-label="Candy Meadow. Use arrow keys or A and D to move, and Space or Up to jump. Jump twice to go higher."></canvas>
 <header>
-  <a class="brand" href="./" aria-label="Back to Candy Kingdom"><span class="brand-mark">✿</span><span>emmabug's world<small>A LITTLE PLACE FOR BIG ADVENTURES</small></span></a>
+  <a class="brand" href="../" aria-label="Back to Candy Kingdom"><span class="brand-mark">✿</span><span>emmabug's world<small>A LITTLE PLACE FOR BIG ADVENTURES</small></span></a>
   <div class="top-actions"><button id="map-button" class="map-button" aria-label="Choose an adventure"><span>◇</span><b>Adventures</b></button><button id="sound" class="icon-button" aria-label="Turn sound on" aria-pressed="false">♫</button><button id="pause" class="icon-button" aria-label="Pause game">Ⅱ</button></div>
 </header>
 <main class="chapter" aria-label="Current adventure"><span class="eyebrow">A SWEET LITTLE ADVENTURE</span><h1><span id="level-title">Candy Meadow</span><span>✦</span></h1><p id="level-subtitle">Follow the sweets. Find a little magic.</p></main>
@@ -22,16 +22,16 @@
 <div class="destination"><span>YOUR NEXT LITTLE WONDER</span><b id="landmark">The candy trail</b><div class="progress"><i id="progress"></i></div></div>
 <div id="family-pill" hidden><button id="family-open"></button><button data-quick-reaction="0" aria-label="Send love">♥</button><button data-quick-reaction="1" aria-label="Send celebration">✦</button><button data-quick-reaction="2" aria-label="Say hello">☀</button></div>
 <div id="message" role="status" aria-live="polite">A little hop. A big adventure.</div>
-<footer><a href="classic.html">← Classic game</a><span class="keyboard-hint"><kbd>←</kbd><kbd>→</kbd> move <span class="hint-dot">·</span> <kbd>SPACE</kbd> jump <span class="hint-dot">·</span> jump twice for extra magic</span><button id="restart" class="text-button">Start again ↻</button></footer>
+<footer><a href="../classic.html">← Classic game</a><span class="keyboard-hint"><kbd>←</kbd><kbd>→</kbd> move <span class="hint-dot">·</span> <kbd>SPACE</kbd> jump <span class="hint-dot">·</span> jump twice for extra magic</span><button id="restart" class="text-button">Start again ↻</button></footer>
 <nav class="touch-controls" aria-label="Game controls"><div><button data-control="left" aria-label="Move left">←</button><button data-control="right" aria-label="Move right">→</button></div><button data-control="jump" class="jump-button" aria-label="Jump">↑<small>JUMP</small></button></nav>
-<div id="modal" class="modal" hidden><section role="dialog" aria-modal="true" aria-labelledby="modal-title"><span class="modal-star">✦</span><span class="eyebrow" id="modal-eyebrow">TAKE YOUR TIME</span><h2 id="modal-title">A little breather</h2><p id="modal-copy">Your adventure will be right here.</p><div id="creative-panel" hidden></div><div id="family-panel" hidden></div><div id="math-panel" hidden><div id="math-equation"></div><div id="counting-sweets" aria-hidden="true"></div><div id="math-answers"></div><p id="puzzle-hint" role="status" aria-live="polite">Take your time. You can count the sweets!</p><button id="magic-door" class="text-button">Open with magic instead ✦</button></div><div id="map-panel" hidden><div class="hub-tools"><button id="room-button">My room</button><button id="builder-button">Build a land</button><button id="family-button">Family play</button><button id="photo-button">Save a picture</button></div><div id="level-grid"></div><p class="map-note">Every adventure is open. Pick a place to play!</p></div><div id="pet-panel" hidden><div class="closet-tabs" aria-label="Friends and dress-up"><button id="friends-tab" aria-pressed="true">Friends</button><button id="outfits-tab" aria-pressed="false">Dress-up</button></div><div id="pet-grid"></div><div id="outfit-grid" hidden></div><div id="treasure-bag"></div><p class="pet-note">Every friend is ready to play. Pick one!</p></div><button id="next-level" class="primary" hidden>Next adventure →</button><button id="resume" class="primary">Keep exploring →</button><a href="./">Back to Candy Kingdom</a></section></div>
+<div id="modal" class="modal" hidden><section role="dialog" aria-modal="true" aria-labelledby="modal-title"><span class="modal-star">✦</span><span class="eyebrow" id="modal-eyebrow">TAKE YOUR TIME</span><h2 id="modal-title">A little breather</h2><p id="modal-copy">Your adventure will be right here.</p><div id="creative-panel" hidden></div><div id="family-panel" hidden></div><div id="math-panel" hidden><div id="math-equation"></div><div id="counting-sweets" aria-hidden="true"></div><div id="math-answers"></div><p id="puzzle-hint" role="status" aria-live="polite">Take your time. You can count the sweets!</p><button id="magic-door" class="text-button">Open with magic instead ✦</button></div><div id="map-panel" hidden><div class="hub-tools"><button id="room-button">My room</button><button id="builder-button">Build a land</button><button id="family-button">Family play</button><button id="photo-button">Save a picture</button></div><div id="level-grid"></div><p class="map-note">Every adventure is open. Pick a place to play!</p></div><div id="pet-panel" hidden><div class="closet-tabs" aria-label="Friends and dress-up"><button id="friends-tab" aria-pressed="true">Friends</button><button id="outfits-tab" aria-pressed="false">Dress-up</button></div><div id="pet-grid"></div><div id="outfit-grid" hidden></div><div id="treasure-bag"></div><p class="pet-note">Every friend is ready to play. Pick one!</p></div><button id="next-level" class="primary" hidden>Next adventure →</button><button id="resume" class="primary">Keep exploring →</button><a href="../">Back to Candy Kingdom</a></section></div>
 <script>
 if ('serviceWorker' in navigator) {
   const hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) location.reload(); }, {once:true});
-  navigator.serviceWorker.register('../sw.js', {scope:'../'}).catch(() => {});
+  navigator.serviceWorker.register('../../sw.js', {scope:'../../'}).catch(() => {});
 }
 </script>
-<script type="module" src="preview/game.mjs"></script>
+<script type="module" src="game.mjs"></script>
 </body>
 </html>

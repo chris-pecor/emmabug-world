@@ -1,0 +1,2835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#ffd6ec">
+<title>Emmabug's Candy Kingdom</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Emmabug Candy">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#ffe9f5; overscroll-behavior:none;
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
+  #c { display:block; width:100%; height:100%; touch-action:none; }
+
+  .rbtn {
+    position:fixed; width:58px; height:58px; border-radius:50%;
+    border:3px solid #ff8fc8; background:rgba(255,255,255,.88);
+    font-size:28px; line-height:1; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 3px 10px rgba(214,51,132,.25); z-index:22; user-select:none;
+  }
+  /* z 22: above the start/win overlay (20) so rooms can be joined from the
+     start screen; below the mp/pet panels (30) */
+  .rbtn:active { transform:scale(.92); }
+  .rbtn.pulse { animation:pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.16); box-shadow:0 0 16px #ff8fc8;} }
+  #muteBtn { top:calc(12px + env(safe-area-inset-top)); right:12px; }
+  #mpBtn { top:calc(12px + env(safe-area-inset-top)); right:82px; }
+  #petBtn { top:calc(12px + env(safe-area-inset-top)); right:152px; }
+  #furnBtn { top:calc(12px + env(safe-area-inset-top)); right:222px; }
+  .rbtn.hidden { display:none; }
+  #roomBtn, #buildBtn { width:auto; margin:10px auto 0; padding:10px 26px; font-size:clamp(16px,4vw,20px);
+    display:inline-block; }
+  #snapBtn {
+    left:calc(16px + env(safe-area-inset-left)); bottom:calc(108px + env(safe-area-inset-bottom));
+    width:56px; height:56px; font-size:24px;
+  }
+  #buildBar {
+    position:fixed; bottom:calc(14px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%);
+    display:flex; gap:8px; z-index:24; background:rgba(255,255,255,.5); padding:8px;
+    border-radius:22px; max-width:96vw; overflow-x:auto; scrollbar-width:none;
+  }
+  #buildBar.hidden { display:none; }
+  .bSlot {
+    flex:0 0 auto; width:56px; height:56px; border-radius:16px; background:rgba(255,255,255,.9);
+    border:3px solid #ffc2e0; font-size:28px; display:flex; align-items:center; justify-content:center;
+    user-select:none; touch-action:manipulation; cursor:pointer;
+  }
+  .bSlot.sel { border-color:#f0359b; background:#ffd6ec; transform:scale(1.08); }
+  #bPlay { border-color:#3ddc55; }
+
+  .rxn {
+    position:fixed; right:calc(124px + env(safe-area-inset-right));
+    width:54px; height:54px; border-radius:50%;
+    border:3px solid #ffc2e0; background:rgba(255,255,255,.85);
+    font-size:26px; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 3px 10px rgba(214,51,132,.25); z-index:10;
+    user-select:none; touch-action:manipulation;
+  }
+  .rxn:active { transform:scale(1.15); background:#ffd6ec; }
+  .rxn.hidden { display:none; }
+  #rx0 { bottom:calc(20px + env(safe-area-inset-bottom)); }
+  #rx1 { bottom:calc(82px + env(safe-area-inset-bottom)); }
+  #rx2 { bottom:calc(144px + env(safe-area-inset-bottom)); }
+  #roomPill.hidden { display:none; }
+
+  #mpOverlay, #petOverlay, #wishOverlay, #furnOverlay {
+    position:fixed; inset:0; z-index:30; display:flex; align-items:center; justify-content:center;
+    background:rgba(180,120,220,.45); backdrop-filter:blur(3px); padding:16px;
+  }
+  #mpOverlay.hidden, #petOverlay.hidden, #wishOverlay.hidden, #furnOverlay.hidden { display:none; }
+  #mpBox, #petBox, #wishBox, #furnBox {
+    background:linear-gradient(160deg,#fff0fa,#ffe3f2 55%,#e9d5ff);
+    border:4px solid #ff8fc8; border-radius:26px; text-align:center;
+    width:min(430px,94vw); max-height:88vh; overflow-y:auto;
+    padding:22px 18px; box-shadow:0 10px 40px rgba(214,51,132,.35); position:relative;
+  }
+  #mpBox h1, #petBox h1, #wishBox h1, #furnBox h1 { font-size:clamp(24px,5.5vw,32px); color:#d63384; margin:0 26px 10px; text-shadow:0 2px 0 #fff; }
+  #mpBox p, #petBox p, #wishBox p, #furnBox p { font-size:clamp(15px,3.8vw,18px); color:#8b3a72; margin-bottom:12px; line-height:1.4; }
+  .petCell { font-size:26px; line-height:1.25; }
+  #tabRow { display:flex; gap:8px; justify-content:center; margin-bottom:12px; }
+  .tabBtn {
+    border:3px solid #ffc2e0; background:#fff; border-radius:18px; padding:8px 16px;
+    font-size:16px; font-weight:800; color:#8b3a72; cursor:pointer;
+  }
+  .tabBtn.sel { border-color:#f0359b; background:#ffd6ec; }
+  .wishRow {
+    display:flex; align-items:center; gap:10px; text-align:left;
+    background:rgba(255,255,255,.7); border:3px solid #ffc2e0; border-radius:16px;
+    padding:10px 14px; margin-bottom:10px; font-size:17px; font-weight:700; color:#8b3a72;
+  }
+  .wishRow.done { border-color:#3ddc55; background:#eafff0; }
+  .wishRow .we { font-size:26px; }
+  .wishRow .wp { margin-left:auto; font-weight:900; color:#d63384; white-space:nowrap; }
+  #lvlRow { display:flex; justify-content:center; gap:10px; margin-bottom:14px; }
+  #lvlRow.hidden { display:none; }
+  .lvlBtn {
+    width:52px; height:52px; border-radius:50%; border:3px solid #ffc2e0; background:#fff;
+    font-size:20px; font-weight:900; color:#d63384; cursor:pointer;
+  }
+  .lvlBtn.sel { border-color:#f0359b; background:#ffd6ec; box-shadow:0 0 10px #ff8fc8; }
+  .lvlBtn.lock { opacity:.45; }
+  .mpMsg { font-weight:800; color:#c2187a !important; }
+  .mpX {
+    position:absolute; top:10px; right:10px; width:44px; height:44px; border-radius:50%;
+    border:3px solid #ff8fc8; background:#fff; font-size:18px; cursor:pointer;
+  }
+  #nameGrid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:14px; }
+  .nameBtn {
+    border:3px solid #ffc2e0; background:#fff; border-radius:14px;
+    font-size:15px; font-weight:800; color:#8b3a72; padding:7px 2px; cursor:pointer; line-height:1.5;
+  }
+  .nameBtn.sel { border-color:#f0359b; background:#ffd6ec; box-shadow:0 0 10px #ff8fc8; }
+  .mpBtn2 {
+    display:block; width:100%; margin:8px 0; font-size:clamp(17px,4.5vw,21px); font-weight:900;
+    color:#fff; border:none; cursor:pointer; background:linear-gradient(180deg,#ff7ab8,#f0359b);
+    border-radius:30px; padding:12px; box-shadow:0 4px 0 #c2187a;
+  }
+  .mpBtn2:active { transform:translateY(2px); box-shadow:0 2px 0 #c2187a; }
+  .joinRow { display:flex; gap:8px; }
+  .joinRow .mpBtn2 { width:auto; flex:1; }
+  #codeIn {
+    flex:1; min-width:0; font-size:26px; font-weight:900; text-align:center;
+    text-transform:uppercase; letter-spacing:.3em; border:3px solid #ffc2e0;
+    border-radius:16px; color:#d63384; background:#fff; padding:8px;
+  }
+  .bigCode {
+    font-size:44px; font-weight:900; letter-spacing:.25em; color:#d63384; background:#fff;
+    border:3px dashed #ff8fc8; border-radius:16px; padding:8px 0 8px .25em; margin-bottom:12px;
+  }
+
+  #hud {
+    position:fixed; top:calc(12px + env(safe-area-inset-top)); left:12px; z-index:22;
+    display:flex; gap:8px; align-items:center;   /* z 22: tappable above the start overlay, like .rbtn */
+  }
+  .pill {
+    background:rgba(255,255,255,.88); border:3px solid #ffc2e0; border-radius:20px;
+    padding:6px 14px; font-size:22px; font-weight:800; color:#d63384;
+    box-shadow:0 3px 10px rgba(214,51,132,.25); user-select:none;
+  }
+
+  .padBtn {
+    position:fixed; bottom:calc(16px + env(safe-area-inset-bottom));
+    width:76px; height:76px; border-radius:50%;
+    border:4px solid #ff8fc8; background:rgba(255,255,255,.82);
+    font-size:36px; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 4px 14px rgba(214,51,132,.3); z-index:10; user-select:none;
+    color:#d63384; font-weight:900; touch-action:none;
+  }
+  .padBtn.held { background:#ffd6ec; transform:scale(.94); }
+  #leftBtn  { left:calc(16px + env(safe-area-inset-left)); }
+  #rightBtn { left:calc(104px + env(safe-area-inset-left)); }
+  #jumpBtn  { right:calc(16px + env(safe-area-inset-right)); width:92px; height:92px; font-size:44px; }
+
+  #overlay {
+    position:fixed; inset:0; z-index:20; display:flex; align-items:center; justify-content:center;
+    background:rgba(255,182,220,.55); backdrop-filter:blur(3px); padding:16px;
+  }
+  #overlay.hidden { display:none; }
+  #panel {
+    background:linear-gradient(160deg,#fff0fa,#ffe3f2 55%,#e9d5ff);
+    border:4px solid #ff8fc8; border-radius:26px; text-align:center;
+    width:min(460px,94vw); padding:26px 20px; box-shadow:0 10px 40px rgba(214,51,132,.35);
+  }
+  #panel h1 { font-size:clamp(26px,6vw,38px); color:#d63384; margin-bottom:10px;
+    text-shadow:0 2px 0 #fff; }
+  #panel p { font-size:clamp(16px,4vw,20px); color:#8b3a72; margin-bottom:18px; line-height:1.4; }
+  #bigBtn {
+    font-size:clamp(20px,5vw,26px); font-weight:900; color:#fff; border:none; cursor:pointer;
+    background:linear-gradient(180deg,#ff7ab8,#f0359b); border-radius:40px; padding:14px 38px;
+    box-shadow:0 5px 0 #c2187a, 0 8px 20px rgba(214,51,132,.4);
+  }
+  #bigBtn:active { transform:translateY(3px); box-shadow:0 2px 0 #c2187a; }
+  #ver { margin-top:10px; font-size:12px; font-weight:700; color:#c489ad; }
+  #bigBtn.hidden { display:none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="hud">
+  <div class="pill" id="chocPill">🍫 0</div>
+  <div class="pill" id="starPill">🌟 0</div>
+  <div class="pill" id="levelPill">🏰 1</div>
+  <div class="pill" id="wishPill">📜 0/3</div>
+  <div class="pill hidden" id="roomPill">🏯</div>
+</div>
+<div class="rbtn" id="muteBtn">🔊</div>
+<div class="rbtn" id="mpBtn">👨‍👩‍👧</div>
+<div class="rbtn" id="petBtn">🐾</div>
+<div class="rbtn hidden" id="furnBtn">🛍️</div>
+<div class="ctl" id="snapBtn">📸</div>
+<div id="buildBar" class="hidden">
+  <div class="bSlot sel" data-b="0">🍡</div>
+  <div class="bSlot" data-b="1">🍬</div>
+  <div class="bSlot" data-b="2">🍫</div>
+  <div class="bSlot" data-b="3">🍭</div>
+  <div class="bSlot" data-b="4">🐻</div>
+  <div class="bSlot" data-b="5">😤</div>
+  <div class="bSlot" data-b="6">🌟</div>
+  <div class="bSlot" id="bPlay">▶</div>
+  <div class="bSlot" id="bExit">❌</div>
+</div>
+<div class="rxn hidden" id="rx0">💗</div>
+<div class="rxn hidden" id="rx1">🎉</div>
+<div class="rxn hidden" id="rx2">👋</div>
+<div id="mpOverlay" class="hidden"><div id="mpBox"></div></div>
+<div id="petOverlay" class="hidden"><div id="petBox"></div></div>
+<div id="wishOverlay" class="hidden"><div id="wishBox"></div></div>
+<div id="furnOverlay" class="hidden"><div id="furnBox"></div></div>
+
+<div class="padBtn" id="leftBtn">◀</div>
+<div class="padBtn" id="rightBtn">▶</div>
+<div class="padBtn" id="jumpBtn">⬆</div>
+
+<div id="overlay">
+  <div id="panel">
+    <h1 id="panelTitle">🍭 Princess Emma's Candy Kingdom 🍭</h1>
+    <p id="panelText">Run and bounce through 4 candy lands!<br>
+    Do quests for gummy bears to hatch pet eggs 🥚<br>
+    and find the 3 hidden stars in every land! 🌟</p>
+    <div id="lvlRow"></div>
+    <button id="bigBtn">▶ Play!</button>
+    <button id="roomBtn" class="mpBtn2">🏠 My Castle Room</button>
+    <button id="buildBtn" class="mpBtn2">🎨 Make a Land</button>
+    <div id="ver">v10.0</div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============================================================
+   Princess Emma's Candy Kingdom — v10.0 (Tier 2: creation & showing off)
+   Emma's Land Builder: sticker palette (platforms, gumdrops, candy,
+   lollis, bears, grumps, stars) → tap to place, drag to move, basket to
+   remove; ▶ plays her land and shares it into the family room, where
+   friends get a "Play Emma's land!" button. 📸 photo mode captures a
+   framed picture for sharing. Princess got a prettier face (v10).
+   Roadmap: v11 Tier 3 (music/weather/birthday), v12 Tier 4 (family modes).
+   2D candy side-scroller. Mobile-first, no fail states.
+   Four lands; reaching each castle triggers a fireworks celebration.
+   Gumdrop trampolines, moving platforms, bop-able grumpy gumballs,
+   hidden stars, gummy-bear quests and hatchable pets that follow you.
+   Progress (candy, stars, eggs, pets, unlocked lands) saves locally.
+   Family multiplayer: private room codes, up to 5 players,
+   preset candy names, emoji reactions, shared candy count.
+   ============================================================ */
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W * DPR; canvas.height = H * DPR;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const RAINBOW = ['#ff3b6b','#ff9f1c','#ffd60a','#3ddc55','#3aa7ff','#8f5bff'];
+
+/* ---------- audio ---------- */
+let audioCtx = null, muted = false;
+function ac() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function tone(freq, dur, type, vol, when) {
+  if (muted) return;
+  try {
+    const a = ac(), t = a.currentTime + (when || 0);
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = type || 'sine'; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol || .15, t);
+    g.gain.exponentialRampToValueAtTime(.001, t + dur);
+    o.connect(g); g.connect(a.destination);
+    o.start(t); o.stop(t + dur + .02);
+  } catch (e) {}
+}
+const sfx = {
+  jump()    { tone(420, .18, 'triangle', .18); tone(640, .16, 'triangle', .12, .05); },
+  collect() { tone(880, .12, 'sine', .16); tone(1320, .18, 'sine', .12, .06); },
+  lolli()   { [660,880,1100,1320].forEach((f,i)=>tone(f,.14,'sine',.14,i*.06)); },
+  hug()     { tone(520, .2, 'triangle', .14); tone(780, .25, 'triangle', .12, .1); },
+  bounce()  { tone(200, .2, 'sine', .18); tone(330, .18, 'sine', .12, .08); },
+  spring()  { tone(160, .1, 'sine', .2); tone(330, .12, 'triangle', .16, .05); tone(660, .2, 'triangle', .14, .11); },
+  bop()     { tone(300, .08, 'square', .12); tone(150, .16, 'sine', .18, .04); },
+  squeak()  { tone(880, .08, 'square', .05); tone(660, .07, 'square', .05, .07); },
+  star()    { [784, 988, 1175, 1568].forEach((f, i) => tone(f, .14, 'sine', .15, i * .07)); },
+  hatch()   { tone(392, .3, 'sine', .12); tone(494, .3, 'sine', .12, .25); tone(587, .4, 'sine', .12, .5); },
+  win()     { [523,659,784,1047,1319,1568].forEach((f,i)=>tone(f,.35,'triangle',.16,i*.13)); }
+};
+const muteBtn = document.getElementById('muteBtn');
+muteBtn.addEventListener('click', () => {
+  muted = !muted;
+  muteBtn.textContent = muted ? '🔇' : '🔊';
+  saveGame();
+});
+
+/* ---------- input ---------- */
+const input = { left:false, right:false, jump:false, jumpPressed:false };
+const keyMap = {
+  ArrowLeft:'left', a:'left', A:'left',
+  ArrowRight:'right', d:'right', D:'right',
+  ArrowUp:'jump', w:'jump', W:'jump', ' ':'jump'
+};
+window.addEventListener('keydown', e => {
+  const k = keyMap[e.key]; if (!k) return;
+  if (k === 'jump' && !input.jump) input.jumpPressed = true;
+  input[k] = true; e.preventDefault();
+});
+window.addEventListener('keyup', e => {
+  const k = keyMap[e.key]; if (k) input[k] = false;
+});
+function bindPad(id, name) {
+  const el = document.getElementById(id);
+  const on = e => { e.preventDefault();
+    if (name === 'jump' && !input.jump) input.jumpPressed = true;
+    input[name] = true; el.classList.add('held'); };
+  const off = e => { e.preventDefault(); input[name] = false; el.classList.remove('held'); };
+  el.addEventListener('pointerdown', on);
+  el.addEventListener('pointerup', off);
+  el.addEventListener('pointercancel', off);
+  el.addEventListener('pointerleave', off);
+}
+bindPad('leftBtn','left'); bindPad('rightBtn','right'); bindPad('jumpBtn','jump');
+// no long-press menus or double-tap zoom on the play controls
+window.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
+
+/* ---------- levels ---------- */
+// grounds: [x, width] cotton-candy segments with friendly gaps between them
+// floats:  [x, height-above-ground, width] licorice platforms
+const LEVELS = [
+  {
+    name: 'Candy Meadow', grade: 5, end: 7400, seed: 20260703, night: false,
+    sky: ['#bfe6ff','#ffe3f4','#ffd1ea'], hills: ['#ffc9e6','#ffb3dc'],
+    grounds: [
+      [-400, 1500], [1650, 900], [2700, 800], [3650, 1000],
+      [4800, 700], [5650, 800], [6600, 1600]
+    ],
+    floats: [
+      [700, 120, 160], [1000, 240, 150], [1350, 130, 170],
+      [1560, 110, 200], [1900, 250, 140], [2250, 130, 180],
+      [2560, 120, 210], [2950, 140, 150], [3250, 260, 170],
+      [3540, 120, 200], [3900, 130, 150], [4200, 250, 160],
+      [4550, 130, 200], [4720, 120, 240], [5050, 140, 150],
+      [5380, 260, 170], [5600, 110, 220], [5900, 130, 150],
+      [6200, 250, 160], [6500, 140, 190], [6900, 260, 150]
+    ],
+    stars: [[1075, 350], [3335, 380], [6280, 360]]
+  },
+  {
+    name: 'Berry Starlight', grade: 6, end: 8200, seed: 60214, night: true,
+    sky: ['#a9b4ff','#e9c9ff','#ffc4ec'], hills: ['#d1a8f2','#bd8fe6'],
+    grounds: [
+      [-400, 1300], [1100, 800], [2100, 700], [3010, 850],
+      [4080, 650], [4950, 700], [5870, 720], [6820, 1500]
+    ],
+    floats: [
+      [650, 130, 150], [950, 150, 130], [1250, 260, 140],
+      [1600, 140, 150], [1930, 130, 130], [2260, 250, 120],
+      [2560, 160, 150], [2860, 280, 130], [3200, 150, 150],
+      [3500, 260, 130], [3800, 140, 140], [3960, 130, 130],
+      [4300, 250, 140], [4600, 160, 130], [4830, 130, 120],
+      [5100, 270, 130], [5400, 150, 140], [5750, 130, 130],
+      [6050, 260, 130], [6350, 150, 140], [6690, 130, 130],
+      [7000, 240, 140], [7350, 160, 150], [7700, 270, 140]
+    ],
+    stars: [[1320, 380], [3565, 370], [7070, 380]]
+  },
+  {
+    // floats may carry [x, up, w, amp, speed] — amp/speed make a MOVING platform
+    name: 'Chocolate River', end: 8800, seed: 41207, night: false,
+    sky: ['#ffe0b3','#ffe9d1','#f5cfae'], hills: ['#d9a36e','#c98d5e'],
+    grounds: [
+      [-400, 1200], [1400, 700], [2300, 750], [3300, 800],
+      [4500, 650], [5400, 750], [6500, 650], [7400, 1800]
+    ],
+    floats: [
+      [700, 130, 160], [1000, 110, 150, 200, 1.0],
+      [1650, 240, 150], [1950, 130, 160], [2400, 250, 150], [2700, 130, 160],
+      [3400, 140, 150], [3700, 260, 140], [4200, 120, 140, 140, 1.2],
+      [4650, 240, 150], [4950, 130, 150],
+      [5500, 250, 150], [5800, 130, 150],
+      [6600, 250, 140], [7150, 120, 140, 110, 1.3],
+      [7600, 240, 150], [8000, 130, 160], [8350, 260, 150]
+    ],
+    stars: [[1725, 360], [4720, 360], [8425, 380]]
+  },
+  {
+    name: 'Rainbow Peaks', end: 9000, seed: 77031, night: true,
+    sky: ['#8fb7ff','#d9c9ff','#ffd1f2'], hills: ['#b3a1f0','#9c86e0'],
+    grounds: [
+      [-400, 1100], [1250, 650], [2150, 700], [3100, 650],
+      [4000, 700], [4950, 650], [5850, 700], [6800, 2400]
+    ],
+    floats: [
+      [600, 130, 150], [900, 250, 140], [1200, 370, 130],
+      [1700, 140, 150], [2000, 260, 140], [2450, 150, 150],
+      [2750, 270, 130], [3050, 390, 120],
+      [3400, 140, 150], [3700, 260, 140], [4050, 150, 150, 120, 1.3],
+      [4400, 270, 130], [4700, 150, 150],
+      [5050, 270, 140], [5350, 390, 130],
+      [5700, 150, 150], [6000, 270, 140], [6350, 150, 150, 140, 1.1],
+      [6900, 140, 150], [7200, 260, 140], [7500, 380, 130],
+      [7900, 150, 150], [8200, 270, 140], [8550, 150, 150]
+    ],
+    stars: [[1265, 480], [3110, 500], [7565, 490]]
+  }
+];
+let levelIdx = 0, LEVEL_END = LEVELS[0].end;
+let platforms = [], candies = [], bears = [], decor = [], particles = [], hearts = [], springs = [];
+let grumps = [], starItems = [], secretFound = false;
+
+/* ---------- persistent progress ---------- */
+let stars = 0, eggs = 0, pets = [], activePet = -1, maxLevel = 0, starsGot = {};
+
+// dress shop — [name, emoji, price, 6-color palette for dress/hair/heels]
+const OUTFITS = [
+  ['Rainbow',    '🌈', 0,   ['#ff3b6b','#ff9f1c','#ffd60a','#3ddc55','#3aa7ff','#8f5bff']],
+  ['Bubblegum',  '💗', 60,  ['#ff5fa2','#ff8fc8','#ffc2e0','#ff2d8d','#ffb3dc','#e0568f']],
+  ['Mermaid',    '🧜‍♀️', 120, ['#2aa7d8','#3ddcc9','#7fe8d8','#4fb8ff','#8f5bff','#35c9a0']],
+  ['Sunset',     '🌅', 200, ['#ff5f6d','#ff9f1c','#ffd60a','#ff7ab8','#ff8c42','#ffb703']],
+  ['Midnight',   '✨', 320, ['#8f5bff','#4b3b8f','#b76dff','#3a2d6e','#6d5bd0','#2d2352']],
+  ['Royal Gold', '👑', 500, ['#ffd24a','#ffb703','#ffe36e','#e0a800','#fff0b3','#d99000']],
+];
+let outfits = [0], activeOutfit = 0;
+
+// pet care: feed candies → hearts → Baby → Big → Super ⭐
+let petLove = {}, petTrickAt = -99;
+const STAGE_NAMES = ['Baby', 'Big', 'Super ⭐'];
+const STAGE_SCALE = [.78, 1, 1.22];
+function petStage(i) {
+  const h = petLove[i] || 0;
+  return h >= 15 ? 2 : h >= 5 ? 1 : 0;
+}
+
+// candy castle room — [emoji, name, price, draw size]
+const FURN = [
+  ['🛏️', 'Bed',        120, 120], ['🛋️', 'Sofa',       100, 110],
+  ['🪑', 'Chair',       40,  80], ['🧸', 'Teddy',       30,  70],
+  ['🎠', 'Pony',        90, 100], ['🪞', 'Mirror',      60,  90],
+  ['🖼️', 'Painting',    50,  80], ['🪴', 'Plant',       35,  80],
+  ['🎹', 'Piano',      150, 110], ['📚', 'Books',       25,  70],
+  ['⭐', 'Star Light',  45,  70], ['🌈', 'Rainbow',     80, 100],
+  ['🫧', 'Bubbles',     55,  80], ['👑', 'Crown Stand', 70,  80],
+];
+const WALLS = [
+  ['💗 Pinky',   0, ['#ffd6ec', '#ffb8dd']],
+  ['⭐ Starry', 80, ['#dcd6ff', '#b9aaff']],
+  ['🍬 Sweetsy',80, ['#ffe9d1', '#ffd1a8']],
+  ['🌿 Minty',  80, ['#d6ffe9', '#a8f0c8']],
+];
+let roomItems = [], furnInv = {}, wallpaper = 0, wallsOwned = [0];
+let mode = 'world';
+
+// Emma's Land Builder — sticker types placed at {t, x, d(=height above ground)}
+const BLEN = 4200;
+const BNAME = ['Platform', 'Bouncy gumdrop', 'Candy', 'Lollipop', 'Bear', 'Grump', 'Star'];
+const B_LIMIT = [20, 6, 40, 8, 5, 6, 3];
+const B_GROUND = [false, true, false, false, true, true, false];   // these sit on the ground
+let customLand = { items: [] };
+let playingCustom = null;
+let bSel = 0, bCamX = -200, bDrag = null, bPan = null;
+const RW = 1200, RH = 640, FLOORY = 560;
+let roomPX = 600, roomFace = 1, roomStep = 0, roomHopY = 0, roomHopV = 0;
+let dragIt = null, furnMsg = '';
+
+// daily wishes — 3 goals a day, same for the whole family (seeded by the date)
+const WISH_DEFS = {
+  bop:    ['😤', 'Bop @ grumpy gumballs'],
+  hug:    ['🐻', 'Hug @ gummy bears'],
+  candy:  ['🍫', 'Collect @ candies'],
+  star:   ['🌟', 'Find @ hidden stars'],
+  spring: ['🍬', 'Bounce on @ gumdrops'],
+  castle: ['🏰', 'Reach @ candy castle'],
+};
+const WISH_NEED = { bop: 4, hug: 5, candy: 40, star: 2, spring: 3, castle: 1 };
+let wishes = [], wishProg = {}, wishAward = [false, false, false], wishDate = '';
+
+let toastMsg = '', toastAt = -9;
+function toast(m) { toastMsg = m; toastAt = time; }
+
+function setupWishes() {
+  const today = new Date().toISOString().slice(0, 10);
+  if (wishDate !== today) {
+    wishDate = today; wishProg = {}; wishAward = [false, false, false];
+  }
+  let hsh = 0;
+  for (const c of today) hsh = (hsh * 31 + c.charCodeAt(0)) >>> 0;
+  const keys = Object.keys(WISH_DEFS);
+  wishes = [];
+  let i = 0;
+  while (wishes.length < 3) {
+    const k = keys[(hsh + i * 7) % keys.length];
+    if (!wishes.includes(k)) wishes.push(k);
+    i++;
+  }
+  syncWishPill();
+}
+function wishCount() { return wishAward.filter(Boolean).length; }
+function syncWishPill() {
+  document.getElementById('wishPill').textContent = '📜 ' + wishCount() + '/3';
+}
+function wishBump(k, n) {
+  if (!wishes.includes(k)) return;
+  wishProg[k] = (wishProg[k] || 0) + n;
+  const i = wishes.indexOf(k);
+  if (!wishAward[i] && wishProg[k] >= WISH_NEED[k]) {
+    wishAward[i] = true;
+    choc += 60;
+    document.getElementById('chocPill').textContent = '🍫 ' + choc;
+    sfx.star();
+    toast('📜 Wish come true! +60 🍫');
+    if (wishCount() === 3) {
+      eggs++;
+      document.getElementById('petBtn').classList.add('pulse');
+      setTimeout(() => { toast('🌟 ALL wishes done! Bonus 🥚!'); }, 1700);
+      sfx.win();
+    }
+    syncWishPill();
+  }
+  saveGame();
+}
+
+const SAVE_KEY = 'emmabug-candy-progress';
+function saveGame() {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(
+      { choc, stars, eggs, pets, activePet, maxLevel, starsGot, muted,
+        outfits, activeOutfit, wishDate, wishProg, wishAward,
+        petLove, roomItems, furnInv, wallpaper, wallsOwned, customLand }));
+  } catch (e) {}
+}
+function loadGame() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+    if (!s) return;
+    choc = s.choc || 0; stars = s.stars || 0; eggs = s.eggs || 0;
+    pets = s.pets || []; activePet = (s.activePet !== undefined) ? s.activePet : -1;
+    maxLevel = s.maxLevel || 0; starsGot = s.starsGot || {}; muted = !!s.muted;
+    outfits = s.outfits || [0];
+    if (!outfits.includes(0)) outfits.unshift(0);
+    activeOutfit = OUTFITS[s.activeOutfit] ? s.activeOutfit : 0;
+    wishDate = s.wishDate || ''; wishProg = s.wishProg || {};
+    wishAward = Array.isArray(s.wishAward) ? s.wishAward : [false, false, false];
+    petLove = s.petLove || {};
+    roomItems = s.roomItems || []; furnInv = s.furnInv || {};
+    wallpaper = WALLS[s.wallpaper] ? s.wallpaper : 0;
+    wallsOwned = s.wallsOwned || [0];
+    if (!wallsOwned.includes(0)) wallsOwned.unshift(0);
+    customLand = { items: sanitizeLand(s.customLand && s.customLand.items) };
+  } catch (e) {}
+}
+function sanitizeLand(items) {
+  if (!Array.isArray(items)) return [];
+  return items.slice(0, 100).map(i => ({
+    t: Math.max(0, Math.min(6, i.t | 0)),
+    x: Math.max(-300, Math.min(BLEN, +i.x || 0)),
+    d: Math.max(0, Math.min(430, +i.d || 0)),
+  }));
+}
+
+function rng(seed) { let s = seed;
+  return () => (s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff; }
+
+function buildLevel() {
+  platforms = []; candies = []; bears = []; decor = [];
+  particles = []; hearts = []; springs = []; grumps = []; starItems = [];
+  secretFound = true;   // (re-enabled below for the built-in lands)
+  if (playingCustom) { buildCustomLevel(); return; }
+  secretFound = false;
+  const L = LEVELS[levelIdx];
+  LEVEL_END = L.end;
+  const r = rng(L.seed);
+
+  for (const [x, w] of L.grounds)
+    platforms.push({ x, w, y: 0, h: 999, type: 'ground' });
+
+  for (const [x, up, w, amp, sp] of L.floats)
+    platforms.push({ x, w, y: up, h: 26, type: 'licorice',
+                     x0: x, prevX: x, amp: amp || 0, sp: sp || 0, ph: x % 7 });
+
+  // hidden stars (remembered forever once found)
+  starItems = (L.stars || []).map(([x, up], i) =>
+    ({ x, up, i, got: !!(starsGot[levelIdx] && starsGot[levelIdx][i]) }));
+
+  // chocolates: rows over ground and on platforms
+  const chocAt = (x, up) => candies.push({ x, up, kind: 'choc', got: false, bob: r() * 6 });
+  const lolliAt = (x, up) => candies.push({ x, up, kind: 'lolli', got: false, bob: r() * 6 });
+  for (const [x, up, w, amp] of L.floats) {
+    if (amp) continue;   // no candy floating beside a moving platform
+    const n = Math.max(1, Math.floor(w / 90));
+    for (let i = 0; i < n; i++) chocAt(x + w * (i + .5) / n, up + 55);
+  }
+  for (let x = 300; x < LEVEL_END - 300; x += 260)
+    if (r() < .75) chocAt(x + r() * 80, 60 + r() * 30);
+  for (let x = 900; x < LEVEL_END - 400; x += 840)
+    lolliAt(x + r() * 60, 210);
+
+  // friendly gummy bears — one per wide ground segment
+  const bearCols = ['#ff5f7e','#3ddc55','#ffb703','#3aa7ff','#b56cff'];
+  let bi = 0;
+  for (const [gx, gw] of L.grounds) {
+    if (gw < 500) continue;
+    const x = gx + gw / 2 + (r() - .5) * gw * .3;
+    const b = { x, dir: bi % 2 ? -1 : 1, col: bearCols[bi % bearCols.length],
+                happy: 0, home: x, range: Math.min(gw * .35, 130 + r() * 80), step: 0 };
+    // some bears have a quest: bring candies, get a pet egg!
+    if (bi === 0 || bi === 2)
+      b.quest = { need: 6 + levelIdx * 4 + bi, done: false };
+    bears.push(b);
+    bi++;
+  }
+
+  // grumpy gumballs — bop them from above for candy!
+  const grumpCols = ['#ff5f7e', '#b56cff', '#3aa7ff', '#ffb703'];
+  let gi = 0;
+  for (const [gx, gw] of L.grounds) {
+    if (gx < 0 || gw < 550 || r() > .55) continue;
+    const x = gx + gw * (.25 + r() * .5);
+    grumps.push({ x, home: x, dir: r() < .5 ? 1 : -1, range: 90 + r() * 60,
+                  col: grumpCols[gi++ % 4], sq: 0, cool: 0 });
+  }
+
+  // background decorations
+  for (let x = -300; x < LEVEL_END + 600; x += 150) {
+    const t = r();
+    if (t < .3) decor.push({ x: x + r() * 90, kind: 'cane', s: .7 + r() * .6 });
+    else if (t < .55) decor.push({ x: x + r() * 90, kind: 'gumdrop', s: .7 + r() * .7,
+                                   col: bearCols[Math.floor(r() * 5)] });
+    else if (t < .75) decor.push({ x: x + r() * 90, kind: 'mint', s: .6 + r() * .6 });
+  }
+
+  // giant gumdrop trampolines — touch one for a super bounce!
+  for (const [gx, gw] of L.grounds) {
+    if (gx < 0 || gw < 700 || r() > .65) continue;
+    const x = gx + gw * (.5 + r() * .3);
+    if (x > LEVEL_END - 500) continue;   // keep clear of the castle
+    springs.push({ x, col: bearCols[Math.floor(r() * 5)], sq: 0 });
+  }
+}
+
+// compile Emma's sticker land into a playable level
+function buildCustomLevel() {
+  LEVEL_END = BLEN;
+  const r = rng(4242);
+  platforms.push({ x: -400, w: BLEN + 800, y: 0, h: 999, type: 'ground' });
+  const cols = ['#ff5f7e', '#3ddc55', '#ffb703', '#3aa7ff', '#b56cff'];
+  let bi = 0, gi = 0, si = 0;
+  for (const it of playingCustom.items) {
+    if (it.t === 0)
+      platforms.push({ x: it.x - 80, w: 160, y: it.d, h: 26, type: 'licorice',
+                       x0: it.x - 80, prevX: it.x - 80, amp: 0, sp: 0, ph: 0 });
+    else if (it.t === 1)
+      springs.push({ x: it.x, col: cols[si++ % 5], sq: 0 });
+    else if (it.t === 2)
+      candies.push({ x: it.x, up: it.d, kind: 'choc', got: false, bob: r() * 6 });
+    else if (it.t === 3)
+      candies.push({ x: it.x, up: it.d, kind: 'lolli', got: false, bob: r() * 6 });
+    else if (it.t === 4)
+      bears.push({ x: it.x, dir: (bi % 2) ? -1 : 1, col: cols[bi++ % 5],
+                   happy: 0, home: it.x, range: 120, step: 0 });
+    else if (it.t === 5)
+      grumps.push({ x: it.x, home: it.x, dir: 1, range: 100, col: cols[gi++ % 5], sq: 0, cool: 0 });
+    else
+      starItems.push({ x: it.x, up: it.d, i: starItems.length, got: false });
+  }
+  for (let x = -300; x < BLEN + 400; x += 170) {
+    const t = r();
+    if (t < .25) decor.push({ x: x + r() * 80, kind: 'cane', s: .7 + r() * .6 });
+    else if (t < .45) decor.push({ x: x + r() * 80, kind: 'mint', s: .6 + r() * .6 });
+  }
+}
+
+/* ---------- player ---------- */
+const P = {
+  x: 80, y: 0, vx: 0, vy: 0, w: 34, h: 96,
+  onGround: false, jumps: 0, face: 1, step: 0,
+  coyote: 0, safeX: 80, won: false
+};
+const GRAV = 2300, MOVE = 340, JUMP_V = 900;
+let choc = 0, camX = 0, time = 0, running = false, wonAt = 0;
+
+function groundTop() { return H - Math.max(90, H * .16); }
+
+function platTop(p) { return p.type === 'ground' ? groundTop() : groundTop() - p.y; }
+
+/* ---------- update ---------- */
+function update(dt) {
+  if (mode === 'room') return updateRoom(dt);
+  if (mode === 'build') return updateBuild(dt);
+  time += dt;
+  const gt = groundTop();
+
+  // moving platforms drift; whoever stands on one rides along
+  for (const pl of platforms) {
+    if (!pl.amp) continue;
+    pl.prevX = pl.x;
+    pl.x = pl.x0 + Math.sin(time * pl.sp + pl.ph) * pl.amp;
+    if (P.standPl === pl && P.onGround) P.x += pl.x - pl.prevX;
+  }
+
+  if (!P.won) {
+    // run (Pengy makes her extra speedy)
+    const want = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+    const runSpd = MOVE * (hasPow('speedy') ? 1.18 : 1);
+    P.vx += (want * runSpd - P.vx) * Math.min(1, dt * 12);
+    if (want) P.face = want;
+    if (Math.abs(P.vx) > 20 && P.onGround) P.step += dt * Math.abs(P.vx) * .05;
+
+    // jump (double jump + coyote time; Draggy grants a TRIPLE, Bunny jumps higher)
+    const maxJ = hasPow('triple') ? 3 : 2;
+    if (P.onGround) { P.jumps = maxJ; P.coyote = .12; }
+    else P.coyote = Math.max(0, P.coyote - dt);
+    if (input.jumpPressed) {
+      if (P.coyote > 0 || P.jumps > 0) {
+        P.vy = -JUMP_V * (hasPow('highjump') ? 1.16 : 1) *
+               (P.coyote > 0 || P.jumps === maxJ ? 1 : .85);
+        if (P.coyote <= 0) P.jumps--;
+        else P.jumps = maxJ - 1;
+        P.coyote = 0; P.onGround = false;
+        sfx.jump();
+        burst(P.x, P.y, 6, '#fff');
+      }
+      input.jumpPressed = false;
+    }
+    input.jumpPressed = false;
+
+    // physics (Flutter: hold jump to float gently down)
+    P.vy = Math.min(P.vy + GRAV * dt, 1200);
+    if (hasPow('glide') && input.jump && !P.onGround && P.vy > 130) {
+      P.vy = 130;
+      if (Math.random() < .25) burst(P.x + 10, P.y - 60, 1, '#b7f0ff');
+    }
+    const prevBottom = P.y;
+    P.x += P.vx * dt;
+    P.y += P.vy * dt;
+    P.x = Math.max(-350, Math.min(LEVEL_END + 400, P.x));
+
+    // land on platforms (one-way, from above)
+    P.onGround = false; P.standPl = null;
+    for (const pl of platforms) {
+      const top = platTop(pl);
+      if (P.x + P.w / 2 < pl.x || P.x - P.w / 2 > pl.x + pl.w) continue;
+      if (P.vy >= 0 && prevBottom <= top + 2 && P.y >= top) {
+        P.y = top; P.vy = 0; P.onGround = true; P.standPl = pl;
+        if (pl.type === 'ground') P.safeX = P.x;
+      }
+    }
+
+    // hidden stars!
+    for (const st of starItems) {
+      if (st.got) continue;
+      const sy = gt - st.up + Math.sin(time * 2 + st.i * 2) * 8;
+      const dx = st.x - P.x, dy = sy - (P.y - P.h * .5);
+      if (dx * dx + dy * dy < 60 * 60) {
+        st.got = true;
+        if (playingCustom) {
+          // stars in homemade lands pay candy (keeps the real star count special)
+          choc += 5;
+          document.getElementById('chocPill').textContent = '🍫 ' + choc;
+        } else {
+          (starsGot[levelIdx] = starsGot[levelIdx] || [])[st.i] = true;
+          stars++;
+          document.getElementById('starPill').textContent = '🌟 ' + stars;
+          wishBump('star', 1);
+        }
+        sfx.star();
+        burstRainbow(st.x, sy, 24);
+        saveGame();
+      }
+    }
+
+    // grumpy gumballs — bop from above for candy, bump from the side and they huff
+    for (const g of grumps) {
+      if (g.sq > 0) { g.sq -= dt; continue; }
+      g.cool = Math.max(0, g.cool - dt);
+      g.x += g.dir * 34 * dt;
+      if (Math.abs(g.x - g.home) > g.range) g.dir *= -1;
+      const dx = P.x - g.x;
+      if (P.vy > 150 && Math.abs(dx) < 36 && P.y > gt - 66 && P.y < gt - 22) {
+        g.sq = 14;   // squished! pops back later
+        choc += 3; mpCandy(3);
+        document.getElementById('chocPill').textContent = '🍫 ' + choc;
+        P.vy = -720;
+        sfx.bop();
+        wishBump('bop', 1);
+        burst(g.x, gt - 30, 10, g.col);
+        burst(g.x, gt - 30, 6, '#fff');
+      } else if (g.cool <= 0 && Math.abs(dx) < 44 && P.y >= gt - 30) {
+        g.cool = 1.2; g.dir = dx > 0 ? -1 : 1;
+        sfx.squeak();
+        hearts.push({ x: g.x, y: gt - 60, vy: -70, life: 1, e: '😤' });
+      }
+    }
+
+    // gumdrop trampolines — super bounce!
+    for (const s of springs) {
+      if (s.sq > 0) s.sq -= dt;
+      if (P.vy > -100 && Math.abs(P.x - s.x) < 42 && P.y > gt - 85 && P.y < gt + 10) {
+        P.y = gt - 74; P.vy = -1500; P.onGround = false; s.sq = .35;
+        sfx.spring(); burstRainbow(s.x, gt - 70, 14);
+        wishBump('spring', 1);
+      }
+    }
+
+    // psst… the secret door behind the birthday cake!
+    if (!secretFound && P.x < -210) {
+      secretFound = true;
+      toast('🤫 Secret candy fountain!');
+      sfx.win(); sfx.lolli();
+      burstRainbow(-255, gt - 120, 30);
+      for (let i = 0; i < 16 + levelIdx * 4; i++)
+        candies.push({ x: -300 + Math.random() * 560, up: 50 + Math.random() * 240,
+                       kind: Math.random() < .18 ? 'lolli' : 'choc', got: false, bob: Math.random() * 6 });
+    }
+
+    // fell in a gap → marshmallow bounce back, no penalty
+    if (P.y > H + 160) {
+      sfx.bounce();
+      P.x = P.safeX; P.y = gt - 40; P.vy = -500; P.vx = 0;
+      burst(P.x, gt, 18, '#fff');
+      burst(P.x, gt, 12, '#ffd6ec');
+    }
+
+    // candy pickups (Kitty pulls nearby treats in, Sparkle doubles lollipops)
+    for (const cd of candies) {
+      if (cd.got) continue;
+      if (hasPow('magnet')) {
+        const mdx = P.x - cd.x, mdy = (P.y - P.h * .5) - (gt - cd.up);
+        if (mdx * mdx + mdy * mdy < 210 * 210) { cd.x += mdx * dt * 3; cd.up -= mdy * dt * 3; }
+      }
+      const cy = gt - cd.up + Math.sin(time * 3 + cd.bob) * 6;
+      const dx = cd.x - P.x, dy = cy - (P.y - P.h * .5);
+      if (dx * dx + dy * dy < 55 * 55) {
+        cd.got = true;
+        const gain = cd.kind === 'lolli' ? (hasPow('sweet') ? 10 : 5) : 1;
+        choc += gain;
+        wishBump('candy', gain);
+        if (cd.kind === 'lolli') { sfx.lolli(); burstRainbow(cd.x, cy, hasPow('sweet') ? 26 : 16); }
+        else { sfx.collect(); burst(cd.x, cy, 8, '#8b5a2b'); burst(cd.x, cy, 5, '#ffd6ec'); }
+        mpCandy(gain);
+        document.getElementById('chocPill').textContent = '🍫 ' + choc;
+      }
+    }
+
+    // Sparkle leaves a little rainbow behind her
+    if (hasPow('sweet') && P.onGround && Math.abs(P.vx) > 100 && Math.random() < .25)
+      particles.push({ x: P.x - P.face * 20, y: P.y - 10 - Math.random() * 60,
+                       vx: -P.face * 30, vy: -20, g: 30, life: .7,
+                       col: RAINBOW[(Math.random() * 6) | 0], r: 2.5 + Math.random() * 2 });
+
+    // gummy bear hugs
+    for (const b of bears) {
+      b.step += dt * 3;
+      b.x += b.dir * 40 * dt;
+      if (Math.abs(b.x - b.home) > b.range) b.dir *= -1;
+      if (b.happy > 0) b.happy -= dt;
+      const dx = b.x - P.x, dy = gt - 30 - (P.y - P.h * .5);
+      if (b.happy <= 0 && dx * dx + dy * dy < 70 * 70) {
+        b.happy = 3;
+        wishBump('hug', 1);
+        if (b.quest && !b.quest.done) {
+          const need = questNeed(b);   // Shelly negotiates a discount
+          if (choc >= need) {
+            // quest complete: trade candies for a pet egg!
+            choc -= need; eggs++; b.quest.done = true;
+            sfx.win();
+            hearts.push({ x: b.x, y: gt - 100, vy: -80, life: 1.8, e: '🥚' });
+            for (let i = 0; i < 5; i++)
+              hearts.push({ x: b.x + (Math.random() - .5) * 50, y: gt - 60,
+                            vy: -60 - Math.random() * 60, life: 1.4 });
+            document.getElementById('petBtn').classList.add('pulse');
+            saveGame();
+          } else {
+            sfx.hug();
+            hearts.push({ x: b.x, y: gt - 100, vy: -60, life: 1.4, e: '🍫' });
+          }
+        } else {
+          choc += 2; sfx.hug(); mpCandy(2);
+          for (let i = 0; i < 6; i++)
+            hearts.push({ x: b.x + (Math.random() - .5) * 40, y: gt - 60,
+                          vy: -60 - Math.random() * 60, life: 1.4 });
+        }
+        document.getElementById('chocPill').textContent = '🍫 ' + choc;
+      }
+    }
+
+    // reached the castle — fireworks, confetti and a big cheer for Emma!
+    if (P.x >= LEVEL_END - 60) {
+      P.won = true; wonAt = time;
+      wonMsg = PRAISE[Math.floor(Math.random() * PRAISE.length)];
+      wishBump('castle', 1);
+      sfx.win();
+      for (let i = 0; i < 26; i++)
+        setTimeout(() => { sfx.collect(); burstRainbow(P.x - 160 + Math.random() * 340,
+          gt - 40 - Math.random() * 320, 12); }, i * 140);
+      setTimeout(doorOpens, 4200);
+    }
+  } else {
+    P.vx = 0;
+    if (Math.random() < .15) burstRainbow(P.x - 120 + Math.random() * 240, gt - 80 - Math.random() * 200, 6);
+    // confetti rain during the celebration
+    if (Math.random() < .6)
+      particles.push({ x: camX + Math.random() * W, y: gt - 460 - Math.random() * 200,
+                       vx: (Math.random() - .5) * 50, vy: 70 + Math.random() * 70, g: 14,
+                       life: 3.5, col: RAINBOW[(Math.random() * 6) | 0], r: 3 + Math.random() * 3.5 });
+  }
+
+  // pet follows a little behind, floating pets hover higher
+  if (activePet >= 0 && PETS[activePet]) {
+    const tx = P.x - P.face * 52, ty = P.y - (PETS[activePet][3] ? 110 : 34);
+    petX += (tx - petX) * Math.min(1, dt * 5);
+    petY += (ty - petY) * Math.min(1, dt * 5);
+    // grown pets do backflip tricks now and then; Super pets show off more
+    const stg = petStage(activePet);
+    if (stg >= 1 && time - petTrickAt > (stg === 2 ? 6 : 10) + (P.x % 3)) {
+      petTrickAt = time;
+      if (stg === 2) burstRainbow(petX, petY - 20, 8);
+    }
+  }
+
+  // friends (multiplayer ghosts) glide toward their latest reported spot
+  updateFriends(dt);
+
+  // camera
+  const target = P.x - W * .38;
+  camX += (target - camX) * Math.min(1, dt * 6);
+  camX = Math.max(-380, Math.min(LEVEL_END + 460 - W, camX));
+
+  // particles
+  for (const p of particles) {
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.vy += (p.g !== undefined ? p.g : 600) * dt;   // confetti sets its own gentle gravity
+    p.life -= dt;
+  }
+  particles = particles.filter(p => p.life > 0);
+  for (const h of hearts) { h.y += h.vy * dt; h.life -= dt; }
+  hearts = hearts.filter(h => h.life > 0);
+}
+
+function burst(x, y, n, col) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, s = 80 + Math.random() * 200;
+    particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 120,
+                     life: .5 + Math.random() * .5, col, r: 2 + Math.random() * 4 });
+  }
+}
+function burstRainbow(x, y, n) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, s = 100 + Math.random() * 240;
+    particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 150,
+                     life: .6 + Math.random() * .7, col: RAINBOW[i % 6], r: 3 + Math.random() * 4 });
+  }
+}
+
+/* ---------- drawing ---------- */
+function draw() {
+  if (mode === 'room') return drawRoom();
+  if (mode === 'build') return drawBuild();
+  const gt = groundTop();
+  const L = LEVELS[levelIdx];
+
+  // candy sky
+  let g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, L.sky[0]); g.addColorStop(.5, L.sky[1]); g.addColorStop(1, L.sky[2]);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+  // sun (day) or moon + twinkling stars (night)
+  if (L.night) {
+    for (let i = 0; i < 42; i++) {
+      const sx = ((i * 379 + 100 - camX * .08) % (W + 200) + W + 200) % (W + 200) - 100;
+      const sy = 20 + (i * 137) % Math.max(60, gt - 180);
+      const tw = .35 + .65 * Math.abs(Math.sin(time * 2 + i * 1.7));
+      ctx.fillStyle = 'rgba(255,255,255,' + (tw * .85).toFixed(2) + ')';
+      ctx.beginPath(); ctx.arc(sx, sy, i % 5 ? 1.4 : 2.4, 0, 7); ctx.fill();
+    }
+    const mg = ctx.createRadialGradient(W - 96, 96, 10, W - 96, 96, 90);
+    mg.addColorStop(0, 'rgba(255,255,255,.35)'); mg.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = mg; ctx.beginPath(); ctx.arc(W - 96, 96, 90, 0, 7); ctx.fill();
+    ctx.fillStyle = '#fffbe8';
+    ctx.beginPath(); ctx.arc(W - 96, 96, 34, 0, 7); ctx.fill();
+    ctx.fillStyle = L.sky[0];
+    ctx.beginPath(); ctx.arc(W - 82, 86, 30, 0, 7); ctx.fill();
+  } else {
+    const sg = ctx.createRadialGradient(W - 100, 100, 12, W - 100, 100, 120);
+    sg.addColorStop(0, 'rgba(255,236,150,.55)'); sg.addColorStop(1, 'rgba(255,236,150,0)');
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(W - 100, 100, 120, 0, 7); ctx.fill();
+    const sc = ctx.createRadialGradient(W - 112, 88, 6, W - 100, 100, 46);
+    sc.addColorStop(0, '#fffdf0'); sc.addColorStop(1, '#ffe36e');
+    ctx.fillStyle = sc; ctx.beginPath(); ctx.arc(W - 100, 100, 46, 0, 7); ctx.fill();
+  }
+
+  // far candy hills (parallax)
+  drawHills(gt, .25, L.hills[0], 140);
+  drawHills(gt, .45, L.hills[1], 90);
+
+  // cotton candy clouds
+  for (let i = 0; i < 8; i++) {
+    const cx = ((i * 520 + 200 - camX * .3) % (W + 700) + W + 700) % (W + 700) - 350;
+    const cy = 60 + (i % 3) * 70 + Math.sin(time * .4 + i) * 8;
+    cloud(cx, cy, 1 + (i % 3) * .3, i % 2 ? '#ffffff' : '#ffe9fb');
+  }
+
+  ctx.save();
+  ctx.translate(-camX, 0);
+
+  // decorations
+  for (const d of decor) {
+    if (d.x < camX - 120 || d.x > camX + W + 120) continue;
+    if (d.kind === 'cane') candyCane(d.x, gt, d.s);
+    else if (d.kind === 'gumdrop') gumdrop(d.x, gt, d.s, d.col);
+    else mintFlower(d.x, gt, d.s);
+  }
+
+  // castle
+  drawCastle(LEVEL_END + 60, gt);
+
+  // the secret door hiding behind the birthday cake
+  if (camX < 500) drawSecretDoor(gt);
+
+  // licorice platforms
+  for (const pl of platforms) {
+    if (pl.x > camX + W + 100 || pl.x + pl.w < camX - 100) continue;
+    if (pl.type === 'licorice') licoricePlatform(pl.x, platTop(pl), pl.w);
+  }
+
+  // cotton candy ground
+  for (const pl of platforms) {
+    if (pl.type !== 'ground') continue;
+    if (pl.x > camX + W + 100 || pl.x + pl.w < camX - 100) continue;
+    cottonGround(pl.x, gt, pl.w);
+  }
+
+  // gumdrop trampolines
+  for (const s of springs)
+    if (s.x > camX - 120 && s.x < camX + W + 120) drawSpring(s, gt);
+
+  // grumpy gumballs
+  for (const g of grumps)
+    if (g.x > camX - 80 && g.x < camX + W + 80) drawGrump(g, gt);
+
+  // hidden stars
+  for (const st of starItems) {
+    if (st.x < camX - 80 || st.x > camX + W + 80) continue;
+    const sy = gt - st.up + Math.sin(time * 2 + st.i * 2) * 8;
+    ctx.save();
+    ctx.translate(st.x, sy);
+    if (st.got) {
+      ctx.globalAlpha = .18;
+      ctx.font = '38px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('⭐', 0, 0);
+    } else {
+      const gl = ctx.createRadialGradient(0, 0, 6, 0, 0, 44);
+      gl.addColorStop(0, 'rgba(255,230,110,.6)'); gl.addColorStop(1, 'rgba(255,230,110,0)');
+      ctx.fillStyle = gl;
+      ctx.beginPath(); ctx.arc(0, 0, 44, 0, 7); ctx.fill();
+      ctx.rotate(Math.sin(time * 2.4 + st.i) * .35);
+      ctx.font = '42px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('⭐', 0, 0);
+    }
+    ctx.restore();
+  }
+
+  // soft shadows ground the characters
+  ctx.fillStyle = 'rgba(150,40,100,.15)';
+  for (const b of bears) {
+    if (b.x < camX - 80 || b.x > camX + W + 80) continue;
+    ctx.beginPath(); ctx.ellipse(b.x, gt + 6, 27, 7, 0, 0, 7); ctx.fill();
+  }
+  for (const g of grumps) {
+    if (g.sq > 0 || g.x < camX - 80 || g.x > camX + W + 80) continue;
+    ctx.beginPath(); ctx.ellipse(g.x, gt + 5, 22, 6, 0, 0, 7); ctx.fill();
+  }
+  if (P.onGround) {
+    ctx.beginPath(); ctx.ellipse(P.x, P.y + 5, 20, 6, 0, 0, 7); ctx.fill();
+  }
+
+  // candies
+  for (const cd of candies) {
+    if (cd.got || cd.x < camX - 60 || cd.x > camX + W + 60) continue;
+    const cy = gt - cd.up + Math.sin(time * 3 + cd.bob) * 6;
+    if (cd.kind === 'lolli') lollipop(cd.x, cy);
+    else chocolate(cd.x, cy);
+  }
+
+  // gummy bears (+ quest bubbles)
+  for (const b of bears) {
+    if (b.x < camX - 80 || b.x > camX + W + 80) continue;
+    gummyBear(b, gt);
+    if (b.quest && !b.quest.done) {
+      const label = '🍫✕' + questNeed(b) + ' → 🥚';
+      ctx.font = '700 15px system-ui';
+      const tw = ctx.measureText(label).width;
+      const bx = b.x, by = gt - 118 + Math.sin(time * 3 + b.home) * 3;
+      ctx.fillStyle = 'rgba(255,255,255,.92)';
+      roundRect(bx - tw / 2 - 10, by - 16, tw + 20, 30, 14); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(bx - 6, by + 13); ctx.lineTo(bx + 6, by + 13); ctx.lineTo(bx, by + 22);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#8b3a72';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(label, bx, by);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    }
+  }
+
+  // friend princesses from the candy room
+  drawFriends();
+
+  // princess! (wearing her chosen dress)
+  drawPrincess(P.x, P.y, P.face, P.step, P.onGround, P.won,
+               (OUTFITS[activeOutfit] || OUTFITS[0])[3], false);
+
+  // her pet, trotting along behind (bigger + fancier as it grows)
+  if (activePet >= 0 && PETS[activePet]) {
+    const fly = PETS[activePet][3];
+    const stg = petStage(activePet);
+    const bob = Math.sin(time * (fly ? 7 : 9)) * (fly ? 7 : 3);
+    const trick = time - petTrickAt < .7 ? (time - petTrickAt) / .7 : 0;
+    ctx.save();
+    ctx.globalAlpha = 1;   // never dim, whatever alpha an earlier pass left behind
+    ctx.translate(petX, petY + bob - (trick ? Math.sin(trick * 3.1416) * 30 : 0));
+    ctx.scale(STAGE_SCALE[stg], STAGE_SCALE[stg]);
+    if (trick) ctx.rotate(trick * 6.283 * (P.face < 0 ? -1 : 1));
+    // soft glow so the pet pops against every background (golden for Super pets)
+    const pgl = ctx.createRadialGradient(0, 0, 4, 0, 0, 28);
+    pgl.addColorStop(0, stg === 2 ? 'rgba(255,220,120,.85)' : 'rgba(255,255,255,.75)');
+    pgl.addColorStop(1, stg === 2 ? 'rgba(255,220,120,0)' : 'rgba(255,255,255,0)');
+    ctx.fillStyle = pgl;
+    ctx.beginPath(); ctx.arc(0, 0, 28, 0, 7); ctx.fill();
+    if (P.face < 0) ctx.scale(-1, 1);
+    ctx.font = '32px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.scale(-1, 1);   // pet emoji face left by default; flip to face travel direction
+    ctx.fillText(PETS[activePet][0], 0, 0);
+    if (stg === 2) { ctx.font = '13px system-ui'; ctx.fillText('⭐', 14, -18); }
+    ctx.restore();
+    // Puppy sniffs out the nearest hidden star
+    if (hasPow('finder')) {
+      let best = null;
+      for (const st of starItems)
+        if (!st.got && (!best || Math.abs(st.x - P.x) < Math.abs(best.x - P.x))) best = st;
+      if (best && Math.abs(best.x - P.x) < 1400 && Math.abs(Math.sin(time * 3)) > .3) {
+        ctx.save();
+        ctx.font = '22px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(best.x > P.x + 60 ? '⭐→' : (best.x < P.x - 60 ? '←⭐' : '⭐👇'),
+                     petX, petY - 42 + Math.sin(time * 5) * 4);
+        ctx.restore();
+      }
+    }
+  }
+
+  // Emma's crown name tag
+  {
+    const label = '👑 Emma';
+    ctx.font = '700 14px system-ui';
+    const tw = ctx.measureText(label).width;
+    ctx.fillStyle = 'rgba(255,255,255,.8)';
+    roundRect(P.x - tw / 2 - 8, P.y - 176, tw + 16, 22, 11); ctx.fill();
+    ctx.fillStyle = '#d63384';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(label, P.x - tw / 2, P.y - 160);
+  }
+
+  // particles + hearts
+  for (const p of particles) {
+    ctx.globalAlpha = Math.min(1, p.life * 2);
+    ctx.fillStyle = p.col;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.font = '22px system-ui';
+  for (const h of hearts) {
+    ctx.globalAlpha = Math.min(1, h.life);
+    ctx.fillText(h.e || '💗', h.x - 11, h.y);
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
+
+  drawToast();
+
+  // big bouncing praise while the celebration plays (screen space)
+  if (P.won && running) {
+    const t = Math.min(1, (time - wonAt) * 1.5);
+    const pulse = 1 + Math.sin(time * 5) * .07;
+    ctx.save();
+    ctx.globalAlpha = t;
+    ctx.translate(W / 2, H * .28);
+    ctx.scale(t * pulse, t * pulse);
+    ctx.rotate(Math.sin(time * 2.2) * .05);
+    ctx.font = '900 ' + Math.round(Math.min(W * .07, 46)) + 'px system-ui';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff';
+    for (const [ox, oy] of [[-3, 0], [3, 0], [0, -3], [0, 3]]) ctx.fillText(wonMsg, ox, oy);
+    ctx.fillStyle = '#ff2d8d';
+    ctx.fillText(wonMsg, 0, 0);
+    ctx.restore();
+  }
+}
+
+function drawHills(gt, para, col, amp) {
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.moveTo(0, gt);
+  for (let x = 0; x <= W; x += 20) {
+    const wx = x + camX * para;
+    ctx.lineTo(x, gt - amp * (0.55 + .45 * Math.sin(wx * .004)) - 20 * Math.sin(wx * .013));
+  }
+  ctx.lineTo(W, gt); ctx.closePath(); ctx.fill();
+}
+
+function cloud(x, y, s, col) {
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.arc(x, y, 28 * s, 0, 7);
+  ctx.arc(x + 30 * s, y - 12 * s, 24 * s, 0, 7);
+  ctx.arc(x + 58 * s, y, 26 * s, 0, 7);
+  ctx.arc(x + 28 * s, y + 10 * s, 24 * s, 0, 7);
+  ctx.fill();
+}
+
+function cottonGround(x, top, w) {
+  // fluffy pink cotton candy with a licorice crust line
+  const g = ctx.createLinearGradient(0, top, 0, H);
+  g.addColorStop(0, '#ffb6de'); g.addColorStop(.4, '#ff9ed2'); g.addColorStop(1, '#f77fc0');
+  ctx.fillStyle = g;
+  ctx.fillRect(x, top, w, H - top);
+  // fluff bumps
+  ctx.fillStyle = '#ffc9e8';
+  for (let bx = x; bx < x + w; bx += 46)
+    { ctx.beginPath(); ctx.arc(bx + 23, top + 2, 24, Math.PI, 0); ctx.fill(); }
+  // sprinkles
+  ctx.save(); ctx.beginPath(); ctx.rect(x, top, w, H - top); ctx.clip();
+  for (let i = 0; i < w / 30; i++) {
+    const sx = x + (i * 137) % w, sy = top + 30 + ((i * 89) % Math.max(40, H - top - 50));
+    ctx.fillStyle = RAINBOW[i % 6];
+    ctx.save(); ctx.translate(sx, sy); ctx.rotate(i); ctx.fillRect(-5, -2, 10, 4); ctx.restore();
+  }
+  ctx.restore();
+  // red licorice edge rope
+  ctx.strokeStyle = '#e0245e'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (let bx = x; bx <= x + w; bx += 23)
+    ctx.arc(bx + 11, top - 20, 12, Math.PI * .95, Math.PI * .05, false);
+  ctx.stroke();
+}
+
+function licoricePlatform(x, top, w) {
+  // black licorice twist with red stripes
+  ctx.fillStyle = '#2b2330';
+  roundRect(x, top, w, 24, 12); ctx.fill();
+  ctx.save();
+  roundRect(x, top, w, 24, 12); ctx.clip();
+  ctx.strokeStyle = '#ff4d6d'; ctx.lineWidth = 8;
+  for (let sx = x - 24; sx < x + w + 24; sx += 34) {
+    ctx.beginPath(); ctx.moveTo(sx, top + 30); ctx.lineTo(sx + 18, top - 6); ctx.stroke();
+  }
+  ctx.restore();
+  ctx.fillStyle = 'rgba(255,255,255,.25)';
+  roundRect(x + 4, top + 3, w - 8, 6, 3); ctx.fill();
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function chocolate(x, y) {
+  ctx.save(); ctx.translate(x, y);
+  ctx.fillStyle = '#6b3f1d';
+  roundRect(-16, -12, 32, 24, 5); ctx.fill();
+  ctx.fillStyle = '#8b5a2b';
+  roundRect(-13, -9, 26, 18, 3); ctx.fill();
+  ctx.strokeStyle = '#6b3f1d'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(0, 9);
+  ctx.moveTo(-13, 0); ctx.lineTo(13, 0); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.5)';
+  ctx.beginPath(); ctx.arc(-7, -5, 2.5, 0, 7); ctx.fill();
+  ctx.restore();
+}
+
+function lollipop(x, y) {
+  ctx.save(); ctx.translate(x, y);
+  // dreamy glow so lollipops pop from the background
+  const glow = ctx.createRadialGradient(0, -6, 4, 0, -6, 36);
+  glow.addColorStop(0, 'rgba(255,255,255,.55)');
+  glow.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(0, -6, 36, 0, 7); ctx.fill();
+  ctx.fillStyle = '#fff';
+  roundRect(-3, 8, 6, 30, 3); ctx.fill();
+  for (let i = 5; i >= 0; i--) {
+    ctx.fillStyle = RAINBOW[i];
+    ctx.beginPath(); ctx.arc(0, -6, 4 + i * 3.4, 0, 7); ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(255,255,255,.55)';
+  ctx.beginPath(); ctx.arc(-7, -13, 5, 0, 7); ctx.fill();
+  ctx.restore();
+}
+
+function candyCane(x, gt, s) {
+  ctx.save(); ctx.translate(x, gt); ctx.scale(s, s);
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 16;
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -110); ctx.arc(18, -110, 18, Math.PI, 0); ctx.stroke();
+  ctx.strokeStyle = '#ff3b5c'; ctx.lineWidth = 16;
+  ctx.setLineDash([14, 14]);
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -110); ctx.arc(18, -110, 18, Math.PI, 0); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function gumdrop(x, gt, s, col) {
+  ctx.save(); ctx.translate(x, gt); ctx.scale(s, s);
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.moveTo(-30, 0);
+  ctx.quadraticCurveTo(-30, -52, 0, -55);
+  ctx.quadraticCurveTo(30, -52, 30, 0);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.45)';
+  for (let i = 0; i < 7; i++) {
+    ctx.beginPath();
+    ctx.arc(-18 + (i * 37) % 36, -12 - (i * 17) % 34, 2.6, 0, 7);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawSpring(s, gt) {
+  // squish right after a bounce, gentle breathing pulse otherwise
+  const amt = s.sq > 0 ? Math.sin(s.sq / .35 * Math.PI) * .38 : 0;
+  const pulse = 1 + Math.sin(time * 3 + s.x) * .05;
+  ctx.save(); ctx.translate(s.x, gt);
+  ctx.scale(1.35 * pulse * (1 + amt * .7), 1.35 * pulse * (1 - amt));
+  ctx.fillStyle = s.col;
+  ctx.beginPath();
+  ctx.moveTo(-30, 0);
+  ctx.quadraticCurveTo(-30, -52, 0, -55);
+  ctx.quadraticCurveTo(30, -52, 30, 0);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.5)';
+  ctx.beginPath(); ctx.ellipse(-10, -40, 8, 4.5, -.5, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.45)';
+  for (let i = 0; i < 7; i++) {
+    ctx.beginPath(); ctx.arc(-18 + (i * 37) % 36, -12 - (i * 17) % 34, 2.6, 0, 7); ctx.fill();
+  }
+  // white star = "jump on me!"
+  ctx.fillStyle = '#fff';
+  ctx.font = '900 20px system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillText('★', 0, -20);
+  ctx.restore();
+}
+
+function drawSecretDoor(gt) {
+  ctx.save(); ctx.translate(-255, gt);
+  const glow = secretFound ? 0 : (.4 + Math.sin(time * 3) * .25);
+  if (glow > 0) {
+    const g = ctx.createRadialGradient(0, -35, 5, 0, -35, 62);
+    g.addColorStop(0, 'rgba(255,150,220,' + glow.toFixed(2) + ')');
+    g.addColorStop(1, 'rgba(255,150,220,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, -35, 62, 0, 7); ctx.fill();
+  }
+  ctx.fillStyle = secretFound ? '#3a2415' : '#5a3a24';
+  ctx.beginPath(); ctx.moveTo(-22, 0); ctx.lineTo(-22, -48);
+  ctx.arc(0, -48, 22, Math.PI, 0); ctx.lineTo(22, 0); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#ffd24a';
+  ctx.beginPath(); ctx.arc(10, -26, 3.5, 0, 7); ctx.fill();
+  if (!secretFound) {
+    ctx.font = '16px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.globalAlpha = Math.min(1, glow + .3);
+    ctx.fillText('✨', 0, -74 + Math.sin(time * 2) * 4);
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+}
+
+function drawGrump(g, gt) {
+  ctx.save(); ctx.translate(g.x, gt);
+  if (g.sq > 0) {
+    // freshly squished: a fading flat splat, then invisible until it pops back
+    const a = Math.max(0, g.sq - 13);
+    if (a > 0) {
+      ctx.globalAlpha = a;
+      ctx.fillStyle = g.col;
+      ctx.beginPath(); ctx.ellipse(0, -7, 30, 8, 0, 0, 7); ctx.fill();
+    }
+    ctx.restore(); return;
+  }
+  const hop = Math.abs(Math.sin(time * 6 + g.home)) * 3;
+  ctx.translate(0, -hop);
+  ctx.fillStyle = g.col;
+  ctx.beginPath(); ctx.arc(0, -26, 22, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.4)';
+  ctx.beginPath(); ctx.ellipse(-8, -34, 6, 3.5, -.5, 0, 7); ctx.fill();
+  // grumpy little face
+  ctx.fillStyle = '#3d1f38';
+  ctx.beginPath(); ctx.arc(-7 * g.dir, -28, 2.6, 0, 7); ctx.arc(3 * g.dir, -28, 2.6, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#3d1f38'; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-11 * g.dir, -36); ctx.lineTo(-4 * g.dir, -33);
+  ctx.moveTo(7 * g.dir, -34); ctx.lineTo(1 * g.dir, -33);
+  ctx.stroke();
+  ctx.beginPath(); ctx.arc(-2 * g.dir, -17, 4, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke();
+  ctx.restore();
+}
+
+function mintFlower(x, gt, s) {
+  ctx.save(); ctx.translate(x, gt); ctx.scale(s, s);
+  ctx.strokeStyle = '#3ddc55'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -46); ctx.stroke();
+  for (let i = 0; i < 6; i++) {
+    const a = i * Math.PI / 3;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.ellipse(Math.cos(a) * 13, -52 + Math.sin(a) * 13, 9, 5.5, a, 0, 7);
+    ctx.fill();
+  }
+  ctx.fillStyle = '#ff3b5c';
+  ctx.beginPath(); ctx.arc(0, -52, 7, 0, 7); ctx.fill();
+  ctx.restore();
+}
+
+function gummyBear(b, gt) {
+  const y = gt, sq = Math.sin(b.step * 4) * 2;
+  ctx.save(); ctx.translate(b.x, y + sq);
+  ctx.fillStyle = b.col;
+  ctx.globalAlpha = .92;
+  // body / head / ears / arms / legs — squishy translucent gummy look
+  ctx.beginPath(); ctx.ellipse(0, -26, 22, 24, 0, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(0, -58, 17, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(-12, -70, 7, 0, 7); ctx.arc(12, -70, 7, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(-22, -32, 8, 13, .5, 0, 7);
+  ctx.ellipse(22, -32, 8, 13, -.5, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(-11, -5, 9, 8, 0, 0, 7);
+  ctx.ellipse(11, -5, 9, 8, 0, 0, 7); ctx.fill();
+  ctx.globalAlpha = 1;
+  // glossy highlight
+  ctx.fillStyle = 'rgba(255,255,255,.4)';
+  ctx.beginPath(); ctx.ellipse(-7, -62, 5, 3, -.6, 0, 7); ctx.fill();
+  // face
+  ctx.fillStyle = '#4a2040';
+  ctx.beginPath(); ctx.arc(-6, -58, 2.4, 0, 7); ctx.arc(6, -58, 2.4, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#4a2040'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+  ctx.beginPath();
+  if (b.happy > 0) ctx.arc(0, -53, 6, .15 * Math.PI, .85 * Math.PI);
+  else ctx.arc(0, -54, 4.5, .2 * Math.PI, .8 * Math.PI);
+  ctx.stroke();
+  if (b.happy > 0) { ctx.font = '16px system-ui'; ctx.fillText('💕', -8, -84); }
+  ctx.restore();
+}
+
+function drawCastle(x, gt) {
+  ctx.save(); ctx.translate(x, gt);
+  // main keep — wafer pink
+  ctx.fillStyle = '#ffb0d8';
+  roundRect(-130, -240, 260, 240, 10); ctx.fill();
+  ctx.fillStyle = '#ff8fc8';
+  for (let i = 0; i < 6; i++) roundRect(-130 + i * 44 + 8, -252, 28, 20, 5), ctx.fill();
+  // ice-cream-cone towers
+  for (const tx of [-150, 150]) {
+    ctx.fillStyle = '#f6d7b0';
+    roundRect(tx - 30, -300, 60, 300, 8); ctx.fill();
+    ctx.strokeStyle = '#d9ab6b'; ctx.lineWidth = 3;
+    for (let yy = -280; yy < -20; yy += 34)
+      { ctx.beginPath(); ctx.moveTo(tx - 28, yy); ctx.lineTo(tx + 28, yy + 20); ctx.stroke(); }
+    ctx.fillStyle = '#fff0fa';
+    ctx.beginPath(); ctx.moveTo(tx - 36, -300);
+    ctx.quadraticCurveTo(tx, -390, tx + 36, -300); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ff3b5c';
+    ctx.beginPath(); ctx.arc(tx, -368, 12, 0, 7); ctx.fill();
+  }
+  // chocolate door
+  ctx.fillStyle = '#6b3f1d';
+  ctx.beginPath(); ctx.moveTo(-45, 0); ctx.lineTo(-45, -80);
+  ctx.arc(0, -80, 45, Math.PI, 0); ctx.lineTo(45, 0); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#8b5a2b';
+  ctx.beginPath(); ctx.moveTo(-34, 0); ctx.lineTo(-34, -76);
+  ctx.arc(0, -76, 34, Math.PI, 0); ctx.lineTo(34, 0); ctx.closePath(); ctx.fill();
+  // golden door knob
+  ctx.fillStyle = '#ffd24a';
+  ctx.beginPath(); ctx.arc(20, -42, 5, 0, 7); ctx.fill();
+  // candy windows with a warm glow + waving flag
+  for (const wx of [-85, 85]) {
+    const wg = ctx.createRadialGradient(wx, -160, 6, wx, -160, 40);
+    wg.addColorStop(0, 'rgba(255,227,110,.6)'); wg.addColorStop(1, 'rgba(255,227,110,0)');
+    ctx.fillStyle = wg; ctx.beginPath(); ctx.arc(wx, -160, 40, 0, 7); ctx.fill();
+    ctx.fillStyle = '#ffe36e';
+    ctx.beginPath(); ctx.arc(wx, -160, 18, 0, 7); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.6)';
+    ctx.beginPath(); ctx.arc(wx - 6, -166, 5, 0, 7); ctx.fill();
+  }
+  ctx.strokeStyle = '#e0245e'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(0, -252); ctx.lineTo(0, -320); ctx.stroke();
+  const fw = Math.sin(time * 4) * 6;
+  ctx.fillStyle = '#ff2d8d';
+  ctx.beginPath(); ctx.moveTo(0, -320);
+  ctx.quadraticCurveTo(30, -316 + fw, 52, -306 + fw);
+  ctx.quadraticCurveTo(30, -300 + fw * .5, 0, -292);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+/* ---------- the princess ---------- */
+// pal: rainbow palette (friends get a rotated one) • ghost: a remote friend, not Emma
+function drawPrincess(x, y, face, step, onGround, winning, pal, ghost) {
+  pal = pal || RAINBOW;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(face, 1);
+  const swing = onGround ? Math.sin(step * 2) : .6;
+  const hairFlow = Math.sin(time * 6) * 4 + (onGround ? 0 : 8);
+  const bob = onGround ? Math.abs(Math.sin(step * 2)) * 2 : 0;
+  ctx.translate(0, -bob);
+
+  // rainbow hair — big flowing mane behind her (drawn first, behind everything)
+  ctx.save();
+  ctx.translate(0, -118);
+  for (let i = 0; i < 6; i++) {
+    ctx.strokeStyle = pal[i]; ctx.lineWidth = 9; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-3, -12 + i * 3);
+    ctx.quadraticCurveTo(-26 - i * 3, 2 + i * 7 + hairFlow,
+                         -20 - i * 3.5, 46 + i * 6 + hairFlow * 1.5);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // legs + rainbow heels (tall legs!)
+  for (const side of [-1, 1]) {
+    const lx = side * 7, la = swing * side * (onGround ? .5 : .25);
+    ctx.save();
+    ctx.translate(lx, -40);
+    ctx.rotate(la * .4);
+    ctx.strokeStyle = '#ffe9e2'; ctx.lineWidth = 9; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 28); ctx.stroke();
+    // rainbow high heel
+    const hg = ctx.createLinearGradient(-8, 28, 14, 34);
+    pal.forEach((c, i) => hg.addColorStop(i / 5, c));
+    ctx.fillStyle = hg;
+    ctx.beginPath();
+    ctx.moveTo(-6, 26); ctx.lineTo(12, 26); ctx.lineTo(14, 32);
+    ctx.lineTo(2, 34); ctx.lineTo(0, 40); ctx.lineTo(-4, 40);
+    ctx.lineTo(-6, 32); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  // rainbow dress (A-line with stripes)
+  ctx.save();
+  ctx.translate(0, -88);
+  ctx.beginPath();
+  ctx.moveTo(-8, 12);
+  ctx.quadraticCurveTo(-30, 48, -26, 56);
+  ctx.lineTo(26, 56);
+  ctx.quadraticCurveTo(30, 48, 8, 12);
+  ctx.closePath();
+  ctx.save(); ctx.clip();
+  for (let i = 0; i < 6; i++) {
+    ctx.fillStyle = pal[i];
+    ctx.fillRect(-34, 12 + i * 7.4, 68, 7.6);
+  }
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 2; ctx.stroke();
+  // bodice
+  ctx.fillStyle = pal[0];
+  roundRect(-9, -2, 18, 16, 5); ctx.fill();
+  ctx.restore();
+
+  // arms
+  for (const side of [-1, 1]) {
+    const aa = winning ? -2.4 : swing * side * .5 - .3;
+    ctx.save();
+    ctx.translate(side * 9, -96);
+    ctx.rotate(aa * side);
+    ctx.strokeStyle = '#ffe9e2'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(side * 4, 20); ctx.stroke();
+    ctx.restore();
+  }
+
+  // neck
+  ctx.strokeStyle = '#ffe9e2'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(0, -104); ctx.lineTo(0, -97); ctx.stroke();
+  // head — warm porcelain skin
+  ctx.fillStyle = '#ffe9e2';
+  ctx.beginPath(); ctx.arc(0, -119, 16, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#f3c7cf'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.arc(0, -119, 16, 0, 7); ctx.stroke();
+  // hair top — bold rainbow cap over the head
+  for (let i = 0; i < 6; i++) {
+    ctx.strokeStyle = pal[i]; ctx.lineWidth = 6; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(0, -119, 21 - i * 2, Math.PI * 1.02, Math.PI * 1.98);
+    ctx.stroke();
+  }
+  // glossy hair shine
+  ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(0, -119, 18.5, Math.PI * 1.18, Math.PI * 1.45); ctx.stroke();
+  // soft bangs framing her face
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = pal[0]; ctx.lineWidth = 4.5;
+  ctx.beginPath(); ctx.moveTo(-13, -128); ctx.quadraticCurveTo(-17, -118, -14, -108); ctx.stroke();
+  ctx.strokeStyle = pal[5]; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(14, -127); ctx.quadraticCurveTo(17, -119, 15, -110); ctx.stroke();
+  ctx.strokeStyle = pal[1]; ctx.lineWidth = 3.5;
+  ctx.beginPath(); ctx.moveTo(-6, -133); ctx.quadraticCurveTo(-10, -128, -9, -122); ctx.stroke();
+  // big sparkly pink eyes: whites → pink iris → pupil → twin light glints
+  for (const ex of [-5.5, 5.5]) {
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.ellipse(ex, -120, 4.4, 5.2, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#ff4fa0';
+    ctx.beginPath(); ctx.arc(ex, -119.4, 3.3, 0, 7); ctx.fill();
+    ctx.fillStyle = '#a01f60';
+    ctx.beginPath(); ctx.arc(ex, -119, 1.7, 0, 7); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(ex - 1.2, -121, 1.1, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(ex + 1.4, -118, .6, 0, 7); ctx.fill();
+    // lashes
+    ctx.strokeStyle = '#8a4a5c'; ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.moveTo(ex - 3.4, -124.4); ctx.lineTo(ex - 4.6, -126);
+    ctx.moveTo(ex - 1, -125.4); ctx.lineTo(ex - 1.6, -127.2);
+    ctx.moveTo(ex + 2, -125); ctx.lineTo(ex + 3, -126.6);
+    ctx.stroke();
+  }
+  // soft brows
+  ctx.strokeStyle = 'rgba(150,90,110,.6)'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.arc(-5.5, -124, 4.6, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke();
+  ctx.beginPath(); ctx.arc(5.5, -124, 4.6, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke();
+  // happy open smile with a hint of lip
+  ctx.fillStyle = '#e0568f';
+  ctx.beginPath(); ctx.arc(0, -111.5, 3.4, .1 * Math.PI, .9 * Math.PI); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#ff9db8';
+  ctx.beginPath(); ctx.arc(0, -110, 1.8, .15 * Math.PI, .85 * Math.PI); ctx.closePath(); ctx.fill();
+  // rosy cheeks on both sides
+  ctx.fillStyle = 'rgba(255,140,190,.45)';
+  ctx.beginPath(); ctx.ellipse(-9.5, -113, 2.8, 1.9, 0, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(9.5, -113, 2.8, 1.9, 0, 0, 7); ctx.fill();
+
+  // tiara
+  ctx.save();
+  ctx.translate(1, -134);
+  ctx.fillStyle = '#ffd24a';
+  ctx.beginPath();
+  ctx.moveTo(-11, 3);
+  ctx.lineTo(-9, -6); ctx.lineTo(-5, 0);
+  ctx.lineTo(0, -9); ctx.lineTo(5, 0);
+  ctx.lineTo(9, -6); ctx.lineTo(11, 3);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#ff2d8d';
+  ctx.beginPath(); ctx.arc(0, -6, 3, 0, 7); ctx.fill();
+  ctx.restore();
+
+  // sparkle trail when moving fast (Emma only — friends report no velocity)
+  if (!ghost && (Math.abs(P.vx) > 200 || !onGround)) {
+    ctx.fillStyle = 'rgba(255,255,255,.8)';
+    for (let i = 0; i < 2; i++) {
+      const sx = -20 - Math.random() * 14, sy = -20 - Math.random() * 80;
+      ctx.font = '10px system-ui'; ctx.fillText('✦', sx, sy);
+    }
+  }
+  ctx.restore();
+}
+
+/* ---------- castle celebration ---------- */
+const PRAISE = [
+  'You did it, Emma! 💖', 'AMAZING Emma! 🌟', 'Emma the Superstar! ⭐',
+  'Princess Power, Emma! 👑', 'WOW Emma!! 🎉', 'Emma is so brave! 🦄',
+];
+let wonMsg = PRAISE[0];
+
+/* ---------- overlay / flow ---------- */
+const overlay = document.getElementById('overlay');
+const bigBtn = document.getElementById('bigBtn');
+const panelTitle = document.getElementById('panelTitle');
+const panelText = document.getElementById('panelText');
+let nextAction = 'start';
+
+function doorOpens() {
+  if (playingCustom) {
+    panelTitle.textContent = '🎨 ' + playingCustom.name + "'s land — DONE! 🎉";
+    panelText.innerHTML = 'What a wonderful candy land!<br>Play it again, or pick a castle land below.';
+    bigBtn.textContent = '▶ Play it again!';
+    nextAction = 'customAgain';
+    syncLvlRow();
+    lvlRowEl.classList.remove('hidden');
+    bigBtn.classList.remove('hidden');
+    overlay.classList.remove('hidden');
+    return;
+  }
+  maxLevel = Math.max(maxLevel, Math.min(levelIdx + 1, LEVELS.length - 1));
+  saveGame();
+  if (levelIdx < LEVELS.length - 1) {
+    panelTitle.textContent = '🎉 The castle door opens! 🎉';
+    panelText.innerHTML = 'Hooray for Princess Emma!<br>Next stop: <b>' + LEVELS[levelIdx + 1].name + '</b> ⭐';
+    bigBtn.textContent = '▶ Level ' + (levelIdx + 2) + '!';
+    nextAction = 'next';
+  } else {
+    panelTitle.textContent = '👑 You did it, Princess Emma! 👑';
+    panelText.innerHTML = 'You finished all of Candy Kingdom with <b>🍫 ' + choc +
+      '</b> candies and <b>🌟 ' + stars + '</b> stars!<br>The whole kingdom is cheering for you! 🎉';
+    bigBtn.textContent = '▶ Play again!';
+    nextAction = 'restart';
+  }
+  syncLvlRow();
+  lvlRowEl.classList.remove('hidden');
+  bigBtn.classList.remove('hidden');
+  overlay.classList.remove('hidden');
+}
+
+bigBtn.addEventListener('click', () => {
+  ac();
+  if (nextAction === 'next') { playingCustom = null; levelIdx++; }
+  else if (nextAction === 'restart') { playingCustom = null; levelIdx = 0; }
+  else if (nextAction !== 'customAgain') playingCustom = null;
+  startLevel();
+});
+
+const lvlRowEl = document.getElementById('lvlRow');
+function syncLvlRow() {
+  lvlRowEl.innerHTML = '';
+  LEVELS.forEach((L, i) => {
+    const b = document.createElement('button');
+    b.className = 'lvlBtn' + (i === levelIdx ? ' sel' : '') + (i > maxLevel ? ' lock' : '');
+    b.textContent = i > maxLevel ? '🔒' : (i + 1);
+    b.addEventListener('click', () => {
+      if (i > maxLevel) { sfx.bounce(); return; }
+      ac(); playingCustom = null; levelIdx = i; startLevel();
+    });
+    lvlRowEl.appendChild(b);
+  });
+}
+
+function startLevel() {
+  mode = 'world';
+  document.getElementById('furnBtn').classList.add('hidden');
+  document.getElementById('buildBar').classList.add('hidden');
+  buildLevel();
+  P.x = 80; P.y = groundTop(); P.vx = 0; P.vy = 0; P.won = false;
+  P.safeX = 80; P.standPl = null; camX = -380;
+  petX = P.x; petY = P.y - 40;
+  document.getElementById('chocPill').textContent = '🍫 ' + choc;
+  document.getElementById('starPill').textContent = '🌟 ' + stars;
+  document.getElementById('levelPill').textContent = playingCustom ? '🎨' : '🏰 ' + (levelIdx + 1);
+  overlay.classList.add('hidden');
+  running = true;
+}
+
+/* ============================================================
+   Pets! Quest bears pay in eggs; eggs hatch into pet friends.
+   [emoji, name, hatch-weight, flies?]
+   ============================================================ */
+const PETS = [
+  ['🐱', 'Kitty',   .20, 0, 'Candy magnet — treats fly to you!'],
+  ['🐶', 'Puppy',   .20, 0, 'Sniffs out hidden stars!'],
+  ['🐰', 'Bunny',   .16, 0, 'Jumps extra high!'],
+  ['🐧', 'Pengy',   .12, 0, 'Runs super fast!'],
+  ['🐢', 'Shelly',  .11, 0, 'Bear quests cost less!'],
+  ['🦋', 'Flutter', .10, 1, 'Hold JUMP to float down!'],
+  ['🦄', 'Sparkle', .07, 0, 'Lollipops worth DOUBLE!'],
+  ['🐉', 'Draggy',  .04, 1, 'TRIPLE jump!'],
+];
+// which pet grants which power
+const PW = { magnet: 0, finder: 1, highjump: 2, speedy: 3, discount: 4, glide: 5, sweet: 6, triple: 7 };
+const hasPow = k => activePet === PW[k];
+function questNeed(b) {
+  return hasPow('discount') ? Math.max(1, Math.round(b.quest.need * .75)) : b.quest.need;
+}
+let petX = 0, petY = 0;
+let petMsg = '';
+
+const petOverlay = document.getElementById('petOverlay');
+const petBox = document.getElementById('petBox');
+const petBtn = document.getElementById('petBtn');
+petBtn.addEventListener('click', () => {
+  ac(); petMsg = '';
+  petBtn.classList.remove('pulse');
+  renderPets();
+  petOverlay.classList.remove('hidden');
+});
+
+let petTab = 'pets';
+function renderPets() {
+  let h = '<button class="mpX" id="petXBtn">❌</button>' +
+    '<h1>' + (petTab === 'pets' ? '🐾 My Pets' : '👗 Dress Shop') + '</h1>' +
+    '<div id="tabRow">' +
+    '<button class="tabBtn' + (petTab === 'pets' ? ' sel' : '') + '" data-t="pets">🐾 Pets</button>' +
+    '<button class="tabBtn' + (petTab === 'shop' ? ' sel' : '') + '" data-t="shop">👗 Dresses</button></div>';
+  if (petMsg) h += '<p class="mpMsg">' + petMsg + '</p>';
+  if (petTab === 'pets') {
+    h += '<p>🥚 Eggs: <b>' + eggs + '</b></p>';
+    h += eggs > 0
+      ? '<button class="mpBtn2" id="hatchBtn">🥚 Hatch an egg!</button>'
+      : '<p>Bring candies to a gummy bear<br>with a 🍫→🥚 bubble to earn eggs!</p>';
+    h += '<p>Tap a pet to bring it along:</p><div id="nameGrid">' +
+      PETS.map((p, i) => {
+        if (!pets.includes(i)) return '<button class="nameBtn petCell" disabled>❓</button>';
+        return '<button class="nameBtn petCell' + (activePet === i ? ' sel' : '') +
+               '" data-i="' + i + '">' + p[0] + '<br>' + p[1] + '</button>';
+      }).join('') + '</div>';
+    if (activePet >= 0 && PETS[activePet]) {
+      const lv = petLove[activePet] || 0, stg = petStage(activePet);
+      h += '<p class="mpMsg">✨ ' + PETS[activePet][1] + ': ' + PETS[activePet][4] + '</p>' +
+        '<p>' + STAGE_NAMES[stg] + ' ' + PETS[activePet][1] + ' — 💗 ' +
+        (stg === 2 ? lv + ' (MAX!)' : lv + ' / ' + (stg === 0 ? 5 : 15)) + '</p>' +
+        '<button class="mpBtn2" id="feedBtn">🍫✕5 Feed ' + PETS[activePet][1] + '</button>';
+    } else if (pets.length)
+      h += '<p>Every pet has a special power! ✨<br>Feed pets to make them grow!</p>';
+  } else {
+    h += '<p>You have <b>🍫 ' + choc + '</b></p><div id="nameGrid">' +
+      OUTFITS.map((o, i) => {
+        const owned = outfits.includes(i);
+        return '<button class="nameBtn petCell' + (activeOutfit === i ? ' sel' : '') +
+               '" data-o="' + i + '">' + o[1] + '<br>' + o[0] +
+               (owned ? '' : '<br>🍫' + o[2]) + '</button>';
+      }).join('') + '</div><p>New dresses change her hair and heels too! 💇‍♀️👠</p>';
+  }
+  petBox.innerHTML = h;
+  document.getElementById('petXBtn').addEventListener('click', () => petOverlay.classList.add('hidden'));
+  for (const b of petBox.querySelectorAll('.tabBtn'))
+    b.addEventListener('click', () => { petTab = b.dataset.t; petMsg = ''; sfx.collect(); renderPets(); });
+  const hb = document.getElementById('hatchBtn');
+  if (hb) hb.addEventListener('click', hatchEgg);
+  const fb = document.getElementById('feedBtn');
+  if (fb) fb.addEventListener('click', feedPet);
+  for (const b of petBox.querySelectorAll('.nameBtn[data-i]'))
+    b.addEventListener('click', () => {
+      const i = +b.dataset.i;
+      activePet = (activePet === i) ? -1 : i;
+      if (activePet >= 0) { petX = P.x; petY = P.y - 40; sfx.collect(); } else sfx.hug();
+      saveGame();
+      renderPets();
+    });
+  for (const b of petBox.querySelectorAll('.nameBtn[data-o]'))
+    b.addEventListener('click', () => {
+      const i = +b.dataset.o;
+      if (outfits.includes(i)) {
+        activeOutfit = i;
+        petMsg = '';
+        sfx.collect();
+      } else if (choc >= OUTFITS[i][2]) {
+        choc -= OUTFITS[i][2];
+        outfits.push(i);
+        activeOutfit = i;
+        document.getElementById('chocPill').textContent = '🍫 ' + choc;
+        petMsg = '🎉 New dress: ' + OUTFITS[i][0] + '! ' + OUTFITS[i][1];
+        sfx.win();
+      } else {
+        petMsg = 'You need ' + (OUTFITS[i][2] - choc) + ' more 🍫 for ' + OUTFITS[i][0] + '!';
+        sfx.bounce();
+      }
+      saveGame();
+      renderPets();
+    });
+}
+
+/* ---------- wish scroll panel ---------- */
+const wishOverlay = document.getElementById('wishOverlay');
+document.getElementById('wishPill').addEventListener('click', () => {
+  ac(); renderWishes(); wishOverlay.classList.remove('hidden');
+});
+function renderWishes() {
+  let h = '<button class="mpX" id="wishXBtn">❌</button><h1>📜 Today\'s Wishes</h1>' +
+    '<p>Finish a wish for <b>+60 🍫</b><br>Finish all three for a bonus 🥚!</p>';
+  wishes.forEach((k, i) => {
+    const need = WISH_NEED[k], p = Math.min(need, wishProg[k] || 0);
+    h += '<div class="wishRow' + (wishAward[i] ? ' done' : '') + '">' +
+      '<span class="we">' + WISH_DEFS[k][0] + '</span>' +
+      '<span>' + WISH_DEFS[k][1].replace('@', need) + '</span>' +
+      '<span class="wp">' + (wishAward[i] ? '✅' : p + ' / ' + need) + '</span></div>';
+  });
+  h += '<p>New wishes every day! 🌈</p>';
+  document.getElementById('wishBox').innerHTML = h;
+  document.getElementById('wishXBtn').addEventListener('click', () => wishOverlay.classList.add('hidden'));
+}
+
+function feedPet() {
+  if (activePet < 0) return;
+  const name = PETS[activePet][1];
+  if (choc < 5) {
+    petMsg = 'You need 5 🍫 to feed ' + name + '!';
+    sfx.bounce(); renderPets(); return;
+  }
+  choc -= 5;
+  document.getElementById('chocPill').textContent = '🍫 ' + choc;
+  const before = petStage(activePet);
+  petLove[activePet] = (petLove[activePet] || 0) + 1;
+  const after = petStage(activePet);
+  for (let i = 0; i < 5; i++)
+    hearts.push({ x: petX + (Math.random() - .5) * 40, y: petY - 20,
+                  vy: -60 - Math.random() * 50, life: 1.3 });
+  if (after > before) {
+    petMsg = '🎉 ' + name + ' grew! Now a ' + STAGE_NAMES[after] + ' pet!';
+    sfx.win();
+    petTrickAt = time;   // celebrate with a trick right away
+  } else {
+    petMsg = name + ' loves it! 💗';
+    sfx.hug();
+  }
+  saveGame();
+  renderPets();
+}
+
+function hatchEgg() {
+  if (eggs < 1) return;
+  eggs--;
+  sfx.hatch();
+  petMsg = '🥚 crack… crack…';
+  renderPets();
+  setTimeout(() => {
+    let pick;
+    if (pets.length >= PETS.length) {
+      choc += 20;
+      document.getElementById('chocPill').textContent = '🍫 ' + choc;
+      petMsg = 'All pets found! The egg was full of candy: +20 🍫';
+    } else {
+      do {
+        let r = Math.random();
+        pick = PETS.length - 1;
+        for (let i = 0; i < PETS.length; i++) { r -= PETS[i][2]; if (r <= 0) { pick = i; break; } }
+      } while (pets.includes(pick));
+      pets.push(pick);
+      activePet = pick;
+      petX = P.x; petY = P.y - 40;
+      petMsg = '🎉 You hatched ' + PETS[pick][1] + '! ' + PETS[pick][0] + ' — ' + PETS[pick][4];
+      sfx.win();
+    }
+    saveGame();
+    renderPets();
+  }, 900);
+}
+
+/* ============================================================
+   Family multiplayer — PeerJS/WebRTC star: the room maker (host)
+   relays everyone's princess to everyone at ~10 Hz. No accounts,
+   no server of ours; private 4-letter room codes only.
+   If anything fails, solo play just continues.
+   ============================================================ */
+const MP_NAMES = [['🍭','Lolli'],['🍫','Choco'],['🍓','Berry'],['🌿','Minty'],
+                  ['🧁','Sprinkle'],['🐻','Gummy'],['🍬','Taffy'],['🍪','Cookie']];
+const MP_EMOJI = ['💗','🎉','👋'];
+const CODE_AB = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';   // no 0/O/1/I/L lookalikes
+const mp = { on:false, isHost:false, peer:null, conns:[], code:'', name:null,
+             slot:0, roster:{}, roomCandy:0, sendT:null, bcastT:null };
+{
+  const savedName = localStorage.getItem('emmabug-mp-name');
+  if (savedName !== null) mp.name = +savedName;
+}
+let mpMsg = '';
+
+function peerId(code) { return 'emmabug-candy-room-' + code; }
+
+function loadPeerJS() {
+  return new Promise((res, rej) => {
+    if (window.Peer) return res();
+    const s = document.createElement('script');
+    s.src = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
+    s.onload = res;
+    s.onerror = () => rej(new Error('offline'));
+    document.head.appendChild(s);
+  });
+}
+
+/* ----- host: make a room ----- */
+async function mpHost() {
+  mpStatus('Opening a candy room… 🍬');
+  try { await loadPeerJS(); } catch (e) { return mpStatus('Playing together needs internet! 📶'); }
+  let code = '';
+  for (let i = 0; i < 4; i++) code += CODE_AB[Math.floor(Math.random() * CODE_AB.length)];
+  const peer = new Peer(peerId(code));
+  mp.peer = peer; mp.isHost = true; mp.code = code; mp.slot = 0;
+  peer.on('open', () => { mpStart(); });
+  peer.on('error', err => {
+    if (err.type === 'unavailable-id') { try { peer.destroy(); } catch (e) {} mpHost(); }
+    else mpFail();
+  });
+  peer.on('connection', conn => {
+    if (mp.conns.length >= 4) {   // host + 4 guests = 5 players, kindly full
+      conn.on('open', () => { conn.send({ t: 'full' }); setTimeout(() => { try { conn.close(); } catch (e) {} }, 400); });
+      return;
+    }
+    let slot = 1;
+    while (mp.conns.some(c => c._slot === slot)) slot++;
+    conn._slot = slot;
+    conn.on('open', () => { mp.conns.push(conn); conn.send({ t: 'welcome', slot }); renderMp(); });
+    conn.on('data', d => hostData(conn, d));
+    conn.on('close', () => dropGuest(conn));
+    conn.on('error', () => dropGuest(conn));
+  });
+}
+function dropGuest(conn) {
+  mp.conns = mp.conns.filter(c => c !== conn);
+  delete mp.roster[conn._slot];
+  renderMp();
+}
+function hostData(conn, d) {
+  if (d.t === 's') mp.roster[conn._slot] = Object.assign(mp.roster[conn._slot] || {}, d.s);
+  else if (d.t === 'c') mp.roomCandy += d.n;
+  else if (d.t === 'e') mpShowReaction(conn._slot, d.i);
+  else if (d.t === 'land') {
+    mpGotLand(d);
+    for (const c of mp.conns) if (c.open && c !== conn) c.send(d);
+  }
+}
+function mpGotLand(d) {
+  mp.sharedLand = { name: ('' + (d.name || 'Friend')).slice(0, 12), items: sanitizeLand(d.items) };
+  toast('🎨 ' + mp.sharedLand.name + ' made a candy land! Tap 👨‍👩‍👧');
+  sfx.collect();
+}
+function mpShareLand(name) {
+  if (!mp.on || !customLand.items.length) return;
+  const msg = { t: 'land', name, items: customLand.items.slice(0, 100) };
+  if (mp.isHost) { for (const c of mp.conns) if (c.open) c.send(msg); }
+  else if (mp.conns[0] && mp.conns[0].open) mp.conns[0].send(msg);
+}
+
+/* ----- guest: join a room ----- */
+async function mpJoin(code) {
+  mpStatus('Looking for room ' + code + '… 🔍');
+  try { await loadPeerJS(); } catch (e) { return mpStatus('Playing together needs internet! 📶'); }
+  const peer = new Peer();
+  mp.peer = peer; mp.isHost = false; mp.code = code;
+  peer.on('error', err => {
+    if (err.type === 'peer-unavailable')
+      mpStatus('Hmm, no room called ' + code + '. Check the secret code! 🤔');
+    else mpFail();
+  });
+  peer.on('open', () => {
+    const conn = peer.connect(peerId(code), { serialization: 'json' });
+    mp.conns = [conn];
+    conn.on('data', d => guestData(d));
+    conn.on('close', () => { if (mp.on) mpStop('Your friends closed the room 💗 You can keep playing!'); });
+    conn.on('error', () => { if (mp.on) mpStop(); else mpFail(); });
+  });
+}
+function guestData(d) {
+  if (d.t === 'welcome') { mp.slot = d.slot; mpStart(); }
+  else if (d.t === 'full') mpStatus('That room is already full of friends! 💗 Ask them to make a new one!');
+  else if (d.t === 'r') {
+    for (const k in d.r)
+      if (+k !== mp.slot) mp.roster[k] = Object.assign(mp.roster[k] || {}, d.r[k]);
+    for (const k in mp.roster) if (!(k in d.r)) delete mp.roster[k];
+    mp.roomCandy = d.rc;
+    syncRoomPill();
+  }
+  else if (d.t === 'e') mpShowReaction(d.slot, d.i);
+  else if (d.t === 'land') mpGotLand(d);
+}
+
+/* ----- shared lifecycle ----- */
+function mpStart() {
+  mp.on = true; mp.roster = {}; mp.roomCandy = 0; mpMsg = '';
+  mp.sendT = setInterval(mpSendState, 100);
+  if (mp.isHost) mp.bcastT = setInterval(mpBroadcast, 100);
+  document.getElementById('roomPill').classList.remove('hidden');
+  for (let i = 0; i < 3; i++) document.getElementById('rx' + i).classList.remove('hidden');
+  syncRoomPill();
+  sfx.win();
+  burstRainbow(P.x, P.y - 80, 20);
+  renderMp();
+}
+function mpStop(msg) {
+  mp.on = false;
+  clearInterval(mp.sendT); clearInterval(mp.bcastT);
+  try { if (mp.peer) mp.peer.destroy(); } catch (e) {}
+  mp.peer = null; mp.conns = []; mp.roster = {}; mp.roomCandy = 0; mp.code = ''; mp.sharedLand = null;
+  document.getElementById('roomPill').classList.add('hidden');
+  for (let i = 0; i < 3; i++) document.getElementById('rx' + i).classList.add('hidden');
+  if (msg) mpStatus(msg); else renderMp();
+}
+function mpFail() {
+  try { if (mp.peer) mp.peer.destroy(); } catch (e) {}
+  mp.peer = null;
+  mpStatus("The candy phone isn't connecting 📞 Try again in a minute!");
+}
+window.addEventListener('beforeunload', () => { try { if (mp.peer) mp.peer.destroy(); } catch (e) {} });
+
+/* ----- state sync ----- */
+function ownState() {
+  // y is sent RELATIVE to the ground line — every device has a different
+  // screen height, so absolute pixels would float friends into the sky
+  return { x: Math.round(P.x), y: Math.round(P.y - groundTop()), f: P.face, g: P.onGround ? 1 : 0,
+           l: mode !== 'world' ? -1 : (playingCustom ? 50 : levelIdx), n: mp.name, s: Math.round(P.step * 10),
+           p: activePet, o: activeOutfit, q: activePet >= 0 ? petStage(activePet) : 0 };
+}
+function mpSendState() {
+  if (!mp.on) return;
+  if (mp.isHost) mp.roster[0] = Object.assign(mp.roster[0] || {}, ownState());
+  else if (mp.conns[0] && mp.conns[0].open) mp.conns[0].send({ t: 's', s: ownState() });
+}
+function mpBroadcast() {
+  if (!mp.on) return;
+  const r = {};
+  for (const k in mp.roster) {
+    const f = mp.roster[k];
+    r[k] = { x: f.x, y: f.y, f: f.f, g: f.g, l: f.l, n: f.n, s: f.s, p: f.p, o: f.o, q: f.q };
+  }
+  const msg = { t: 'r', r, rc: mp.roomCandy };
+  for (const c of mp.conns) if (c.open) c.send(msg);
+  syncRoomPill();
+}
+function mpCandy(n) {
+  if (!mp.on) return;
+  if (mp.isHost) mp.roomCandy += n;
+  else if (mp.conns[0] && mp.conns[0].open) mp.conns[0].send({ t: 'c', n });
+}
+function syncRoomPill() {
+  document.getElementById('roomPill').textContent = '🏰 ' + mp.code + '  🍬 ' + mp.roomCandy;
+}
+
+/* ----- friends: interpolation + drawing ----- */
+function updateFriends(dt) {
+  if (!mp.on) return;
+  for (const k in mp.roster) {
+    if (+k === mp.slot) continue;
+    const f = mp.roster[k];
+    if (f.x === undefined) continue;
+    if (f.dx === undefined) { f.dx = f.x; f.dy = f.y; f.ds = 0; }
+    const moving = Math.abs(f.x - f.dx) > 3;
+    f.dx += (f.x - f.dx) * Math.min(1, dt * 10);
+    f.dy += (f.y - f.dy) * Math.min(1, dt * 10);
+    f.ds = f.s !== undefined ? f.s / 10 : (f.ds + (moving ? dt * 10 : 0));
+  }
+}
+function palFor(slot) {
+  const k = (slot * 2) % 6;
+  return RAINBOW.slice(k).concat(RAINBOW.slice(0, k));
+}
+function drawFriends() {
+  if (!mp.on) return;
+  for (const k in mp.roster) {
+    if (+k === mp.slot) continue;
+    const f = mp.roster[k];
+    const ownL = playingCustom ? 50 : levelIdx;
+    if (f.dx === undefined || f.l !== ownL) continue;
+    if (f.dx < camX - 120 || f.dx > camX + W + 120) continue;
+    const fy = groundTop() + f.dy;   // re-anchor to THIS device's ground line
+    ctx.save();
+    ctx.globalAlpha = .85;
+    const fpal = (f.o != null && OUTFITS[f.o]) ? OUTFITS[f.o][3] : palFor(+k);
+    drawPrincess(f.dx, fy, f.f || 1, f.ds || 0, !!f.g, false, fpal, true);
+    ctx.restore();
+    if (f.p != null && f.p >= 0 && PETS[f.p]) {
+      const fscl = STAGE_SCALE[f.q || 0];
+      ctx.font = Math.round(26 * fscl) + 'px system-ui';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.globalAlpha = 1;
+      ctx.fillText(PETS[f.p][0], f.dx - (f.f || 1) * 50, fy - 32 + Math.sin(time * 8 + f.dx) * 3);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    }
+    if (f.n != null && MP_NAMES[f.n]) {
+      const label = MP_NAMES[f.n][0] + ' ' + MP_NAMES[f.n][1];
+      ctx.font = '700 14px system-ui';
+      const tw = ctx.measureText(label).width;
+      ctx.fillStyle = 'rgba(255,255,255,.8)';
+      roundRect(f.dx - tw / 2 - 8, fy - 166, tw + 16, 22, 11); ctx.fill();
+      ctx.fillStyle = '#d63384';
+      ctx.fillText(label, f.dx - tw / 2, fy - 150);
+    }
+  }
+}
+
+/* ----- emoji reactions ----- */
+function mpReact(i) {
+  if (!mp.on) return;
+  mpShowReaction(mp.slot, i);
+  if (mp.isHost) { for (const c of mp.conns) if (c.open) c.send({ t: 'e', slot: 0, i }); }
+  else if (mp.conns[0] && mp.conns[0].open) mp.conns[0].send({ t: 'e', i });
+}
+function mpShowReaction(slot, i) {
+  const own = slot === mp.slot;
+  let px, py;
+  if (own) { px = P.x; py = P.y; }
+  else {
+    const f = mp.roster[slot];
+    if (f && f.dx !== undefined) { px = f.dx; py = groundTop() + f.dy; }
+  }
+  if (px !== undefined) {
+    for (let k = 0; k < 5; k++)
+      hearts.push({ x: px + (Math.random() - .5) * 50, y: py - 120 - Math.random() * 40,
+                    vy: -60 - Math.random() * 50, life: 1.5, e: MP_EMOJI[i] });
+  }
+  sfx.hug();
+  // host relays a guest's reaction to the other guests
+  if (mp.isHost && !own)
+    for (const c of mp.conns) if (c.open && c._slot !== slot) c.send({ t: 'e', slot, i });
+}
+for (let i = 0; i < 3; i++)
+  document.getElementById('rx' + i).addEventListener('pointerdown', e => { e.preventDefault(); mpReact(i); });
+
+/* ----- room panel UI ----- */
+const mpOverlay = document.getElementById('mpOverlay');
+const mpBox = document.getElementById('mpBox');
+document.getElementById('mpBtn').addEventListener('click', () => { ac(); mpMsg = ''; mpOpen(); });
+function mpOpen() { renderMp(); mpOverlay.classList.remove('hidden'); }
+function mpClose() { mpOverlay.classList.add('hidden'); }
+function mpStatus(m) { mpMsg = m; mpOpen(); }
+
+const roomParam = ((new URLSearchParams(location.search)).get('room') || '').toUpperCase();
+
+function renderMp() {
+  const prevCode = (((document.getElementById('codeIn') || {}).value || roomParam)
+                    .toUpperCase().replace(/[^A-Z2-9]/g, '')).slice(0, 4);
+  let h = '<button class="mpX" id="mpXBtn">❌</button>';
+  if (mp.on) {
+    const count = mp.isHost ? mp.conns.length + 1 : Object.keys(mp.roster).length + 1;
+    h += '<h1>🏰 Your Candy Room</h1>' +
+         '<div class="bigCode">' + mp.code + '</div>' +
+         '<p>Tell your family the secret code!<br>Friends here: <b>' + count + ' / 5</b></p>' +
+         (mp.sharedLand ? '<button class="mpBtn2" id="mpLand">🎨 Play ' + mp.sharedLand.name + '\'s land!</button>' : '') +
+         '<button class="mpBtn2" id="mpShare">📨 Share an invite</button>' +
+         '<button class="mpBtn2" id="mpLeave">🚪 Leave the room</button>';
+  } else {
+    h += '<h1>👨‍👩‍👧 Play Together!</h1>';
+    if (mpMsg) h += '<p class="mpMsg">' + mpMsg + '</p>';
+    h += '<p>Pick your candy name:</p><div id="nameGrid">' +
+      MP_NAMES.map((n, i) =>
+        '<button class="nameBtn' + (mp.name === i ? ' sel' : '') + '" data-i="' + i + '">' +
+        n[0] + '<br>' + n[1] + '</button>').join('') +
+      '</div>' +
+      '<button class="mpBtn2" id="mpMake">🏠 Make a room</button>' +
+      '<div class="joinRow"><input id="codeIn" maxlength="4" placeholder="CODE" ' +
+      'autocomplete="off" autocapitalize="characters" value="' + prevCode + '">' +
+      '<button class="mpBtn2" id="mpGo">🔑 Join</button></div>';
+  }
+  mpBox.innerHTML = h;
+  document.getElementById('mpXBtn').addEventListener('click', mpClose);
+  if (mp.on) {
+    document.getElementById('mpShare').addEventListener('click', mpShare);
+    document.getElementById('mpLeave').addEventListener('click', () => mpStop());
+    const ml = document.getElementById('mpLand');
+    if (ml) ml.addEventListener('click', () => {
+      mpClose();
+      playCustom(mp.sharedLand.items, mp.sharedLand.name);
+    });
+  } else {
+    for (const b of mpBox.querySelectorAll('.nameBtn'))
+      b.addEventListener('click', () => {
+        mp.name = +b.dataset.i;
+        localStorage.setItem('emmabug-mp-name', mp.name);
+        sfx.collect();
+        renderMp();
+      });
+    document.getElementById('mpMake').addEventListener('click', () => {
+      ac();
+      if (mp.name === null) return mpStatus('Pick your candy name first! 🍭');
+      mpHost();
+    });
+    const codeIn = document.getElementById('codeIn');
+    codeIn.addEventListener('input', () => { codeIn.value = codeIn.value.toUpperCase(); });
+    document.getElementById('mpGo').addEventListener('click', () => {
+      ac();
+      if (mp.name === null) return mpStatus('Pick your candy name first! 🍭');
+      const code = codeIn.value.trim().toUpperCase();
+      if (code.length !== 4) return mpStatus('The secret code has 4 letters! ✏️');
+      mpJoin(code);
+    });
+  }
+}
+function mpShare() {
+  const url = location.origin + location.pathname + '?room=' + mp.code;
+  const text = 'Come play Candy Kingdom with me! 🍭 Room code: ' + mp.code;
+  if (navigator.share) navigator.share({ title: "Emmabug's Candy Kingdom", text, url }).catch(() => {});
+  else if (navigator.clipboard) {
+    navigator.clipboard.writeText(text + ' ' + url).catch(() => {});
+    mpMsg = 'Invite copied! Paste it to your family 💌';
+    renderMp();
+  }
+}
+// arriving via an invite link? open the panel with the code filled in
+if (/^[A-Z2-9]{4}$/.test(roomParam)) {
+  mpMsg = 'Pick your candy name, then tap Join!';
+  setTimeout(mpOpen, 500);
+}
+
+/* ============================================================
+   Candy Castle Room — Emma's own decoratable room.
+   Walk with the pads, drag furniture with a finger,
+   put things away in the basket, shop with the 🛍️ button.
+   ============================================================ */
+function drawToast() {
+  if (time - toastAt >= 2.4) return;
+  const tt = time - toastAt;
+  const a = Math.min(1, tt * 4) * Math.min(1, (2.4 - tt) * 2);
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.translate(W / 2, H * .14);
+  ctx.font = '900 ' + Math.round(Math.min(W * .05, 30)) + 'px system-ui';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const tw = ctx.measureText(toastMsg).width;
+  ctx.fillStyle = 'rgba(255,255,255,.9)';
+  roundRect(-tw / 2 - 18, -24, tw + 36, 48, 24); ctx.fill();
+  ctx.fillStyle = '#d63384';
+  ctx.fillText(toastMsg, 0, 0);
+  ctx.restore();
+}
+
+function roomScale() {
+  const rs = Math.min(W / RW, H / RH);
+  return { rs, ox: (W - RW * rs) / 2, oy: (H - RH * rs) / 2 };
+}
+
+function enterRoom() {
+  mode = 'room';
+  running = true;
+  P.vx = 0; dragIt = null;
+  roomPX = 600; roomFace = 1; roomHopY = 0; roomHopV = 0;
+  overlay.classList.add('hidden');
+  document.getElementById('furnBtn').classList.remove('hidden');
+  toast('🏠 Welcome home, Emma!');
+  sfx.collect();
+}
+function exitRoom() {
+  mode = 'world';
+  dragIt = null;
+  document.getElementById('furnBtn').classList.add('hidden');
+  furnOverlay.classList.add('hidden');
+  overlay.classList.remove('hidden');
+  saveGame();
+  sfx.collect();
+}
+document.getElementById('roomBtn').addEventListener('click', () => { ac(); enterRoom(); });
+
+function updateRoom(dt) {
+  time += dt;
+  const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+  if (dir) { roomFace = dir; roomStep += dt * 8; }
+  roomPX = Math.max(190, Math.min(RW - 80, roomPX + dir * 320 * dt));
+  if (input.jumpPressed) {
+    input.jumpPressed = false;
+    if (roomHopY === 0) { roomHopV = 520; sfx.jump(); }
+  }
+  input.jumpPressed = false;
+  if (roomHopY > 0 || roomHopV !== 0) {
+    roomHopY += roomHopV * dt; roomHopV -= 2100 * dt;
+    if (roomHopY <= 0) { roomHopY = 0; roomHopV = 0; }
+  }
+}
+
+function drawRoom() {
+  const { rs, ox, oy } = roomScale();
+  ctx.fillStyle = '#6e3159';
+  ctx.fillRect(0, 0, W, H);
+  ctx.save();
+  ctx.translate(ox, oy); ctx.scale(rs, rs);
+
+  // wallpaper
+  const wp = WALLS[wallpaper] || WALLS[0];
+  ctx.fillStyle = wp[2][0];
+  ctx.fillRect(0, 0, RW, FLOORY);
+  ctx.fillStyle = wp[2][1];
+  if (wallpaper === 0) {
+    for (let x = 20; x < RW; x += 90) ctx.fillRect(x, 0, 32, FLOORY);
+  } else if (wallpaper === 1) {
+    ctx.font = '26px system-ui'; ctx.textAlign = 'center'; ctx.globalAlpha = .7;
+    for (let x = 50; x < RW; x += 130)
+      for (let y = 50; y < FLOORY - 20; y += 120)
+        ctx.fillText('✦', x + (y % 2 ? 40 : 0), y);
+    ctx.globalAlpha = 1;
+  } else if (wallpaper === 2) {
+    ctx.font = '24px system-ui'; ctx.textAlign = 'center'; ctx.globalAlpha = .5;
+    for (let x = 60; x < RW; x += 140)
+      for (let y = 60; y < FLOORY - 20; y += 130)
+        ctx.fillText('🍬', x + (y % 2 ? 46 : 0), y);
+    ctx.globalAlpha = 1;
+  } else {
+    ctx.globalAlpha = .55;
+    for (let x = 55; x < RW; x += 110)
+      for (let y = 55; y < FLOORY - 20; y += 110) {
+        ctx.beginPath(); ctx.arc(x + (y % 2 ? 40 : 0), y, 14, 0, 7); ctx.fill();
+      }
+    ctx.globalAlpha = 1;
+  }
+
+  // cookie floor with sprinkles
+  const fg = ctx.createLinearGradient(0, FLOORY, 0, RH);
+  fg.addColorStop(0, '#c98d5e'); fg.addColorStop(1, '#a96f43');
+  ctx.fillStyle = fg;
+  ctx.fillRect(0, FLOORY, RW, RH - FLOORY);
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, FLOORY - 8, RW, 10);
+  for (let i = 0; i < 30; i++) {
+    ctx.fillStyle = RAINBOW[i % 6];
+    ctx.save();
+    ctx.translate(40 + (i * 173) % (RW - 80), FLOORY + 18 + (i * 37) % 50);
+    ctx.rotate(i); ctx.fillRect(-5, -2, 10, 4);
+    ctx.restore();
+  }
+
+  // window with the candy sky outside
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(830, 320); ctx.lineTo(830, 180); ctx.arc(930, 180, 100, Math.PI, 0);
+  ctx.lineTo(1030, 320); ctx.closePath();
+  ctx.clip();
+  const wg = ctx.createLinearGradient(0, 60, 0, 320);
+  wg.addColorStop(0, '#bfe6ff'); wg.addColorStop(1, '#ffd1ea');
+  ctx.fillStyle = wg; ctx.fillRect(830, 60, 200, 260);
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(880 + Math.sin(time * .4) * 14, 150, 22, 0, 7);
+  ctx.arc(910 + Math.sin(time * .4) * 14, 142, 26, 0, 7);
+  ctx.arc(940 + Math.sin(time * .4) * 14, 152, 20, 0, 7);
+  ctx.fill();
+  ctx.fillStyle = '#ffe36e';
+  ctx.beginPath(); ctx.arc(990, 110, 24, 0, 7); ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 12;
+  ctx.beginPath();
+  ctx.moveTo(830, 320); ctx.lineTo(830, 180); ctx.arc(930, 180, 100, Math.PI, 0);
+  ctx.lineTo(1030, 320); ctx.closePath(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(930, 84); ctx.lineTo(930, 318); ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.fillRect(816, 316, 228, 14);
+
+  // string lights along the ceiling
+  ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(0, 26);
+  for (let x = 0; x <= RW; x += 60) ctx.lineTo(x, 26 + Math.sin(x * .02) * 10);
+  ctx.stroke();
+  for (let i = 0; i < RW / 60; i++) {
+    const lx = i * 60 + 30, ly = 30 + Math.sin(lx * .02) * 10;
+    const tw2 = .55 + .45 * Math.sin(time * 3 + i * 1.3);
+    ctx.fillStyle = RAINBOW[i % 6];
+    ctx.globalAlpha = tw2;
+    ctx.beginPath(); ctx.arc(lx, ly + 10, 8, 0, 7); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // exit door
+  ctx.fillStyle = '#5a3a24';
+  ctx.beginPath();
+  ctx.moveTo(70, FLOORY); ctx.lineTo(70, FLOORY - 120);
+  ctx.arc(115, FLOORY - 120, 45, Math.PI, 0);
+  ctx.lineTo(160, FLOORY); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#ffd24a';
+  ctx.beginPath(); ctx.arc(140, FLOORY - 62, 6, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.85)';
+  ctx.font = '700 20px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('⬅ bye!', 115, FLOORY - 150);
+
+  // put-away basket
+  ctx.fillStyle = 'rgba(255,255,255,.55)';
+  roundRect(RW - 160, 46, 130, 96, 18); ctx.fill();
+  ctx.strokeStyle = '#ffc2e0'; ctx.lineWidth = 4;
+  roundRect(RW - 160, 46, 130, 96, 18); ctx.stroke();
+  ctx.font = '40px system-ui';
+  ctx.fillText('🧺', RW - 95, 88);
+  ctx.fillStyle = '#8b3a72'; ctx.font = '700 15px system-ui';
+  ctx.fillText('put away', RW - 95, 126);
+
+  // furniture!
+  for (const it of roomItems) {
+    const sz = FURN[it.t][3];
+    ctx.save();
+    ctx.translate(it.x, it.y);
+    if (it === dragIt) {
+      const g = ctx.createRadialGradient(0, 0, 8, 0, 0, sz * .8);
+      g.addColorStop(0, 'rgba(255,255,255,.7)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(0, 0, sz * .8, 0, 7); ctx.fill();
+      ctx.scale(1.1, 1.1);
+    }
+    ctx.font = sz + 'px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(FURN[it.t][0], 0, 0);
+    ctx.restore();
+  }
+
+  // Emma and her pet, at home
+  drawPrincess(roomPX, FLOORY - roomHopY, roomFace, roomStep, roomHopY === 0, false,
+               (OUTFITS[activeOutfit] || OUTFITS[0])[3], false);
+  if (activePet >= 0 && PETS[activePet]) {
+    const stg = petStage(activePet);
+    ctx.font = Math.round(34 * STAGE_SCALE[stg]) + 'px system-ui';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.save();
+    ctx.translate(roomPX - roomFace * 74, FLOORY - 22 - Math.abs(Math.sin(time * 4)) * 8);
+    if (roomFace > 0) ctx.scale(-1, 1);
+    ctx.fillText(PETS[activePet][0], 0, 0);
+    ctx.restore();
+  }
+
+  if (!roomItems.length) {
+    ctx.fillStyle = 'rgba(139,58,114,.75)';
+    ctx.font = '700 26px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText('Tap 🛍️ to get comfy things for your room!', RW / 2, 420);
+  }
+  ctx.restore();
+  drawToast();
+}
+
+// dragging furniture around
+function roomPt(ev) {
+  const { rs, ox, oy } = roomScale();
+  return { x: (ev.clientX - ox) / rs, y: (ev.clientY - oy) / rs };
+}
+canvas.addEventListener('pointerdown', ev => {
+  if (mode === 'build') return buildDown(ev);
+  if (mode !== 'room') return;
+  ac();
+  const p = roomPt(ev);
+  for (let i = roomItems.length - 1; i >= 0; i--) {
+    const it = roomItems[i], sz = FURN[it.t][3];
+    if (Math.abs(p.x - it.x) < sz * .6 && Math.abs(p.y - it.y) < sz * .6) {
+      dragIt = it;
+      roomItems.splice(i, 1); roomItems.push(it);   // bring to front
+      try { canvas.setPointerCapture(ev.pointerId); } catch (e) {}
+      tone(520, .06, 'sine', .08);
+      return;
+    }
+  }
+  if (p.x < 190 && p.y > FLOORY - 190 && p.y < FLOORY + 30) exitRoom();
+});
+canvas.addEventListener('pointermove', ev => {
+  if (mode === 'build') return buildMove(ev);
+  if (mode !== 'room' || !dragIt) return;
+  const p = roomPt(ev);
+  dragIt.x = Math.max(60, Math.min(RW - 40, p.x));
+  dragIt.y = Math.max(80, Math.min(FLOORY - 4, p.y));
+});
+canvas.addEventListener('pointerup', ev => {
+  if (mode === 'build') return buildUp(ev);
+  if (mode !== 'room' || !dragIt) return;
+  if (dragIt.x > RW - 190 && dragIt.y < 170) {
+    furnInv[dragIt.t] = (furnInv[dragIt.t] || 0) + 1;
+    roomItems = roomItems.filter(i => i !== dragIt);
+    toast('🧺 Put away safe!');
+    tone(300, .1, 'sine', .12);
+  } else {
+    tone(380, .07, 'sine', .1);
+  }
+  dragIt = null;
+  saveGame();
+});
+
+// the comfy shop
+const furnOverlay = document.getElementById('furnOverlay');
+const furnBox = document.getElementById('furnBox');
+document.getElementById('furnBtn').addEventListener('click', () => {
+  ac(); furnMsg = ''; renderFurn();
+  furnOverlay.classList.remove('hidden');
+});
+function renderFurn() {
+  let h = '<button class="mpX" id="furnXBtn">❌</button><h1>🛍️ Comfy Shop</h1>' +
+    '<p>You have <b>🍫 ' + choc + '</b></p>';
+  if (furnMsg) h += '<p class="mpMsg">' + furnMsg + '</p>';
+  h += '<div id="nameGrid">' + FURN.map((f, i) => {
+    const inv = furnInv[i] || 0;
+    return '<button class="nameBtn petCell" data-f="' + i + '">' + f[0] + '<br>' + f[1] +
+      '<br>' + (inv > 0 ? '🧺×' + inv : '🍫' + f[2]) + '</button>';
+  }).join('') + '</div><p>Wallpaper:</p><div id="tabRow">' +
+    WALLS.map((w, i) => '<button class="tabBtn' + (wallpaper === i ? ' sel' : '') + '" data-w="' + i + '">' +
+      w[0] + (wallsOwned.includes(i) ? '' : ' 🍫' + w[1]) + '</button>').join('') + '</div>';
+  furnBox.innerHTML = h;
+  document.getElementById('furnXBtn').addEventListener('click', () => furnOverlay.classList.add('hidden'));
+  for (const b of furnBox.querySelectorAll('.nameBtn[data-f]'))
+    b.addEventListener('click', () => {
+      const i = +b.dataset.f;
+      if ((furnInv[i] || 0) > 0) {
+        furnInv[i]--;
+        placeFurn(i);
+      } else if (choc >= FURN[i][2]) {
+        choc -= FURN[i][2];
+        document.getElementById('chocPill').textContent = '🍫 ' + choc;
+        placeFurn(i);
+        sfx.win();
+      } else {
+        furnMsg = 'You need ' + (FURN[i][2] - choc) + ' more 🍫 for the ' + FURN[i][1] + '!';
+        sfx.bounce();
+        renderFurn();
+        return;
+      }
+      saveGame();
+      furnOverlay.classList.add('hidden');
+      toast(FURN[i][0] + ' Drag it anywhere you like!');
+    });
+  for (const b of furnBox.querySelectorAll('.tabBtn[data-w]'))
+    b.addEventListener('click', () => {
+      const i = +b.dataset.w;
+      if (wallsOwned.includes(i)) {
+        wallpaper = i;
+        sfx.collect();
+      } else if (choc >= WALLS[i][1]) {
+        choc -= WALLS[i][1];
+        wallsOwned.push(i);
+        wallpaper = i;
+        document.getElementById('chocPill').textContent = '🍫 ' + choc;
+        furnMsg = '🎉 New wallpaper: ' + WALLS[i][0] + '!';
+        sfx.win();
+      } else {
+        furnMsg = 'You need ' + (WALLS[i][1] - choc) + ' more 🍫 for that wallpaper!';
+        sfx.bounce();
+      }
+      saveGame();
+      renderFurn();
+    });
+}
+function placeFurn(i) {
+  roomItems.push({ t: i, x: 500 + Math.random() * 240, y: FLOORY - FURN[i][3] * .38 });
+  sfx.collect();
+}
+
+/* ============================================================
+   Emma's Land Builder — tap a sticker, tap the land, drag to
+   move, drag to the basket to take off. ▶ plays it (and shares
+   it to the family room); ❌ goes back.
+   ============================================================ */
+function enterBuild() {
+  mode = 'build';
+  running = true;
+  bDrag = null; bPan = null; bCamX = -200;
+  overlay.classList.add('hidden');
+  document.getElementById('buildBar').classList.remove('hidden');
+  document.getElementById('furnBtn').classList.add('hidden');
+  toast('🎨 Tap a sticker, then tap the land!');
+  sfx.collect();
+}
+function exitBuild() {
+  mode = 'world';
+  document.getElementById('buildBar').classList.add('hidden');
+  overlay.classList.remove('hidden');
+  saveGame();
+  sfx.collect();
+}
+document.getElementById('buildBtn').addEventListener('click', () => { ac(); enterBuild(); });
+for (const b of document.querySelectorAll('.bSlot[data-b]'))
+  b.addEventListener('click', () => {
+    bSel = +b.dataset.b;
+    for (const o of document.querySelectorAll('.bSlot[data-b]')) o.classList.toggle('sel', +o.dataset.b === bSel);
+    tone(560 + bSel * 30, .06, 'triangle', .1);
+  });
+document.getElementById('bExit').addEventListener('click', exitBuild);
+document.getElementById('bPlay').addEventListener('click', () => {
+  ac();
+  if (!customLand.items.length) { toast('Place some stickers first! 🎨'); sfx.bounce(); return; }
+  saveGame();
+  document.getElementById('buildBar').classList.add('hidden');
+  const name = (mp.name !== null && MP_NAMES[mp.name]) ? MP_NAMES[mp.name][1] : 'Emma';
+  mpShareLand(name);
+  playCustom(customLand.items, name);
+});
+function playCustom(items, name) {
+  playingCustom = { items: sanitizeLand(items), name: ('' + name).slice(0, 12) };
+  startLevel();
+}
+
+function updateBuild(dt) {
+  time += dt;
+  const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+  bCamX = Math.max(-420, Math.min(BLEN - W + 420, bCamX + dir * 440 * dt));
+  input.jumpPressed = false;
+}
+
+function drawBuild() {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#bfe6ff'); g.addColorStop(.6, '#ffe3f4'); g.addColorStop(1, '#ffd1ea');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  const gt = groundTop();
+  ctx.save();
+  ctx.translate(-bCamX, 0);
+  cottonGround(-400, gt, BLEN + 800);
+  drawCastle(BLEN + 60, gt);
+  for (const it of customLand.items) drawBuildItem(it, gt);
+  ctx.restore();
+  // take-off basket
+  ctx.fillStyle = 'rgba(255,255,255,.55)';
+  roundRect(W - 120, 84, 104, 76, 16); ctx.fill();
+  ctx.font = '32px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('🧺', W - 68, 114);
+  ctx.fillStyle = '#8b3a72'; ctx.font = '700 13px system-ui';
+  ctx.fillText('take off', W - 68, 148);
+  // hint strip
+  ctx.fillStyle = 'rgba(255,255,255,.85)';
+  roundRect(W / 2 - 170, 10, 340, 34, 17); ctx.fill();
+  ctx.fillStyle = '#d63384'; ctx.font = '700 15px system-ui';
+  ctx.fillText('🎨 ' + BNAME[bSel] + ' — tap to place, drag to move', W / 2, 27);
+  drawToast();
+}
+function drawBuildItem(it, gt) {
+  if (it.t === 0) licoricePlatform(it.x - 80, gt - it.d, 160);
+  else if (it.t === 1) drawSpring({ x: it.x, col: '#3ddc55', sq: 0 }, gt);
+  else if (it.t === 2) chocolate(it.x, gt - it.d);
+  else if (it.t === 3) lollipop(it.x, gt - it.d);
+  else if (it.t === 4) gummyBear({ x: it.x, col: '#ff5f7e', happy: 0, step: 0, dir: 1 }, gt);
+  else if (it.t === 5) drawGrump({ x: it.x, home: it.x, dir: 1, sq: 0, col: '#b56cff' }, gt);
+  else {
+    ctx.font = '42px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('⭐', it.x, gt - it.d);
+  }
+}
+
+function buildDown(ev) {
+  ac();
+  const wx = ev.clientX + bCamX, gt = groundTop();
+  for (let i = customLand.items.length - 1; i >= 0; i--) {
+    const it = customLand.items[i];
+    const iy = B_GROUND[it.t] ? gt - 34 : gt - it.d;
+    if (Math.abs(wx - it.x) < 55 && Math.abs(ev.clientY - iy) < 55) {
+      bDrag = it;
+      customLand.items.splice(i, 1); customLand.items.push(it);
+      try { canvas.setPointerCapture(ev.pointerId); } catch (e) {}
+      tone(520, .06, 'sine', .08);
+      return;
+    }
+  }
+  bPan = { sx: ev.clientX, cam: bCamX, moved: false, t: performance.now() };
+}
+function buildMove(ev) {
+  if (bDrag) {
+    const gt = groundTop();
+    bDrag.x = Math.max(-100, Math.min(BLEN - 150, Math.round(ev.clientX + bCamX)));
+    if (!B_GROUND[bDrag.t]) {
+      let d = gt - ev.clientY;
+      if (bDrag.t === 0) d = Math.round(d / 40) * 40;
+      bDrag.d = Math.max(60, Math.min(430, Math.round(d)));
+    }
+  } else if (bPan) {
+    const dx = ev.clientX - bPan.sx;
+    if (Math.abs(dx) > 12) bPan.moved = true;
+    bCamX = Math.max(-420, Math.min(BLEN - W + 420, bPan.cam - dx));
+  }
+}
+function buildUp(ev) {
+  if (bDrag) {
+    if (ev.clientX > W - 130 && ev.clientY > 70 && ev.clientY < 170) {
+      customLand.items = customLand.items.filter(i => i !== bDrag);
+      toast('🧺 Sticker taken off!');
+      tone(300, .1, 'sine', .12);
+    }
+    bDrag = null;
+    saveGame();
+    return;
+  }
+  if (bPan && !bPan.moved && performance.now() - bPan.t < 400)
+    placeBuildItem(ev.clientX + bCamX, ev.clientY);
+  bPan = null;
+}
+function placeBuildItem(wx, sy) {
+  const t = bSel, gt = groundTop();
+  if (customLand.items.filter(i => i.t === t).length >= B_LIMIT[t]) {
+    toast('That\'s all the ' + BNAME[t] + ' stickers! Move one instead 💗');
+    sfx.bounce();
+    return;
+  }
+  if (wx < -300 || wx > BLEN - 100) { sfx.bounce(); return; }
+  let d = Math.max(60, Math.min(430, gt - sy));
+  if (t === 0) d = Math.round(d / 40) * 40;
+  customLand.items.push({ t, x: Math.round(wx), d: B_GROUND[t] ? 0 : Math.round(d) });
+  tone(600 + t * 40, .08, 'triangle', .12);
+  saveGame();
+}
+
+/* ---------- photo mode 📸 ---------- */
+document.getElementById('snapBtn').addEventListener('click', () => {
+  ac();
+  sfx.star();
+  if (mode === 'world') burstRainbow(P.x, P.y - 100, 22);
+  toast('📸 Say cheese!');
+  setTimeout(takeSnap, 400);
+});
+function takeSnap() {
+  try {
+    const tc = document.createElement('canvas');
+    tc.width = canvas.width; tc.height = canvas.height;
+    const t = tc.getContext('2d');
+    t.drawImage(canvas, 0, 0);
+    t.scale(DPR, DPR);
+    t.strokeStyle = '#ff8fc8'; t.lineWidth = 12;
+    t.strokeRect(6, 6, W - 12, H - 12);
+    const cap = '👑 Princess Emma 🍭';
+    t.font = '900 26px system-ui';
+    const cw = t.measureText(cap).width;
+    t.fillStyle = 'rgba(255,255,255,.88)';
+    t.fillRect(W / 2 - cw / 2 - 20, H - 68, cw + 40, 46);
+    t.fillStyle = '#d63384'; t.textAlign = 'center'; t.textBaseline = 'middle';
+    t.fillText(cap, W / 2, H - 45);
+    tc.toBlob(async blob => {
+      if (!blob) return;
+      const file = new File([blob], 'princess-emma.png', { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: 'Princess Emma' }); return; } catch (e) {}
+      }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'princess-emma.png';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    });
+  } catch (e) {}
+}
+
+/* ---------- main loop ---------- */
+loadGame();
+setupWishes();
+setInterval(saveGame, 8000);
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveGame(); });
+muteBtn.textContent = muted ? '🔇' : '🔊';
+document.getElementById('chocPill').textContent = '🍫 ' + choc;
+document.getElementById('starPill').textContent = '🌟 ' + stars;
+syncLvlRow();
+buildLevel();
+P.y = 0;
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(.033, (now - last) / 1000);
+  last = now;
+  if (P.y === 0) P.y = groundTop();  // settle on first layout
+  if (running) update(dt); else time += dt;
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('../sw.js', { scope: '../' }).catch(() => {});
+}
+</script>
+</body>
+</html>
