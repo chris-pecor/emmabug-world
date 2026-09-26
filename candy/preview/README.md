@@ -15,7 +15,9 @@ Use arrows or A/D to move and Space, Up, or W to jump. Jump again for a double
 jump. Phones have simultaneous movement and jump buttons. Escape pauses; leaving
 the tab clears held controls and pauses. Sound starts muted.
 
-- Four adventures: Candy Meadow, Berry Starlight, Chocolate River, Rainbow Peaks.
+- Four extended adventures: Candy Meadow, Berry Starlight, Chocolate River, Rainbow Peaks.
+  Courses span 7,310–9,220 world units, with extra island crossings, moving
+  bridges, climbing routes, and treasures throughout the later chapters.
 - Fixed-step physics, buffered jumps, edge grace, moving platforms, gumdrop springs,
   and safe recovery after falls. Each castle is reachable without a pet power.
 - Treats, three stars per adventure, gems, chests, rainbow magnets, helpful gummy

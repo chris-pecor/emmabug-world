@@ -59,3 +59,18 @@ test('counting doors have unique answer choices and child-sized arithmetic in ev
  const {puzzleFor}=await import('./puzzles.mjs');
  for(const level of LEVELS){const q=puzzleFor(level.id);assert.equal(q.answer,q.op==='+'?q.a+q.b:q.a-q.b);assert.ok(q.answer>0&&q.answer<=10);assert.equal(new Set(q.choices).size,3);assert.ok(q.choices.includes(q.answer));}
 });
+
+test('extended chapters provide crossings and rewards all the way to each castle',()=>{
+ for(const level of LEVELS){
+  const a=createAdventure('bunny','rose',level.id);
+  assert.ok(level.finish>=7300);
+  assert.ok(level.grounds.length>=7);
+  assert.ok(level.floats.filter(pl=>pl[3]>0).length>=4);
+  assert.equal(level.stars.length,3);
+  assert.ok(level.stars[2][0]>level.finish*.75);
+  for(const items of [a.treats,a.gems,a.potions,a.chests,a.friends])
+   assert.ok(items.some(item=>item.x>level.finish*.75),'the final chapter needs rewards');
+  assert.ok(a.treats.every(item=>item.x<level.finish));
+  assert.ok(level.grounds.some(([x,w])=>x<level.finish&&x+w>level.finish+100));
+ }
+});

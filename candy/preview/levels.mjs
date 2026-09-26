@@ -24,4 +24,51 @@ export const LEVELS=[
   springs:[2190,3230],grumps:[790,1640,2640,3850],stars:[[995,245],[2800,150],[3880,145]],friends:[440,1400,4600],chests:[1260,4470],
   landmarks:['The marshmallow foothills','Up the rainbow stairway','A pocket full of clouds','The highest wishing star','The rainbow castle']}
 ];
+// Extra chapters keep each world's terrain distinct. Coordinates are relative to
+// the former castle clearing, so the original opening remains familiar.
+const CHAPTERS = {
+ meadow: {
+  length:3400, grounds:[[0,550],[790,610],[1650,650],[2540,1180]],
+  floats:[[260,510,165],[450,405,155],[570,490,190,55],[890,490,160],[1090,390,165],[1300,300,170],[1430,485,210,65],[1720,510,170],[1920,410,165],[2140,315,175],[2320,480,195,55],[2640,500,175],[2850,405,170],[3070,505,180]],
+  springs:[940,1770,2700],grumps:[350,1190,2090,2910],
+  stars:[[1380,230],[2220,245]],chests:[1030,2810],
+  landmarks:['The candy trail','Across the icing islands','The gumdrop garden','The wishing-star treetops','The celebration castle']
+ },
+ berry: {
+  length:3800,grounds:[[0,510],[770,550],[1590,650],[2530,560],[3370,750]],
+  floats:[[220,510,160],[400,405,160],[540,485,205,75],[830,500,165],[1020,395,160],[1220,290,170],[1370,480,215,85],[1680,505,175],[1870,400,160],[2070,300,170],[2280,475,225,70],[2600,505,170],[2790,400,165],[2990,300,175],[3130,480,220,65],[3430,500,180]],
+  springs:[900,1760,2630],grumps:[310,1120,2070,2830,3580],
+  stars:[[1300,220],[3070,230]],chests:[1930,3510],
+  landmarks:['The moonberry grove','The lantern stepping stones','The firefly bridges','The moonlit canopy','The starlight castle']
+ },
+ river: {
+  length:4200,grounds:[[0,470],[780,520],[1630,540],[2490,580],[3380,1140]],
+  floats:[[210,510,180],[410,410,175],[500,490,245,85],[830,500,180],[1040,390,175],[1300,490,260,95],[1650,510,180],[1860,405,180],[2070,305,185],[2210,485,260,90],[2570,510,180],[2780,405,175],[2990,300,185],[3100,480,265,85],[3440,510,180],[3640,410,180],[3850,315,190]],
+  springs:[900,1750,2630,3490],grumps:[270,1110,1960,2860,3820],
+  stars:[[2155,235],[3940,245]],chests:[1870,3670],
+  landmarks:['The caramel orchard','Hop aboard a biscuit boat','The winding cocoa rapids','The toffee lookout','The cocoa castle']
+ },
+ peaks: {
+  length:4600,grounds:[[0,490],[770,580],[1650,600],[2540,620],[3460,610],[4330,590]],
+  floats:[[210,510,165],[400,405,160],[570,480,205,80],[830,500,170],[1030,395,165],[1240,290,170],[1430,480,220,90],[1690,510,170],[1880,405,165],[2070,300,175],[2280,205,185],[2330,480,210,75],[2620,505,175],[2820,400,170],[3020,295,180],[3220,200,190],[3230,480,235,85],[3520,510,175],[3720,405,170],[3920,300,180],[4110,480,220,75],[4380,510,175]],
+  springs:[920,1760,2640,3540],grumps:[290,1130,2010,2890,3830],
+  stars:[[2365,135],[3310,130]],chests:[1910,3690],
+  landmarks:['The marshmallow foothills','Up the rainbow stairway','The cloud island crossing','The double rainbow summit','The rainbow castle']
+ }
+};
+for (const level of LEVELS) {
+ const chapter=CHAPTERS[level.id],start=level.finish-300;
+ // Replace the old finish clearing with a chain of islands and rest stops.
+ const last=level.grounds.at(-1);
+ last[1]=start+chapter.grounds[0][1]-last[0];
+ level.grounds.push(...chapter.grounds.slice(1).map(([x,w])=>[start+x,w]));
+ level.floats.push(...chapter.floats.map(([x,...rest])=>[start+x,...rest]));
+ level.springs.push(...chapter.springs.map(x=>start+x));
+ level.grumps.push(...chapter.grumps.map(x=>start+x));
+ level.chests.push(...chapter.chests.map(x=>start+x));
+ level.stars=[level.stars[0],...chapter.stars.map(([x,y])=>[start+x,y])];
+ level.finish=start+chapter.length;
+ level.friends=[level.friends[0],start+chapter.grounds[2][0]+150,level.finish-180];
+ level.landmarks=chapter.landmarks;
+}
 export const levelById=id=>LEVELS.find(level=>level.id===id)||LEVELS[0];

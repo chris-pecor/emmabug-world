@@ -1,4 +1,3 @@
-import {CANDY} from './physics.mjs';
 import {levelById} from './levels.mjs';
 
 export const PETS = [
@@ -27,35 +26,24 @@ OUTFITS.push(
 export const questNeed=(friend,pet)=>pet==='shelly'?Math.max(1,Math.ceil(friend.need*.75)):friend.need;
 export function createAdventure(pet='kitty',outfit='rose',levelId='meadow') {
   const level=levelById(levelId);
-  const treats=CANDY.map(([x,y],i)=>({x,y,kind:['candy','cookie','lolly','candy','cupcake'][i%5]}));
-  for(const [x,y] of [[300,520],[540,535],[675,450],[850,350],[1030,430],[1220,520],[1460,550],[1660,425],[1920,430],[2130,520],[2400,405],[2640,300],[2790,420],[3180,540],[3380,440],[3580,360],[3760,500],[4040,540]]) {
-    treats.push({x,y,kind:['cookie','lolly','cupcake'][treats.length%3]});
-  }
-  if(level.id!=='meadow') {
-    treats.length=0;
-    // Sweets trace both the ground route and the optional climbing route.
-    for(const [x,w] of level.grounds)for(let tx=Math.max(240,x+90);tx<x+w-75&&tx<level.finish-80;tx+=180)
-      treats.push({x:tx,y:560,kind:['cookie','candy','lolly'][treats.length%3]});
-    for(const [x,y,w] of level.floats) {
-      treats.push({x:x+w*.35,y:y-50,kind:'cupcake'});
-      treats.push({x:x+w*.7,y:y-55,kind:'lolly'});
-    }
+  const treats=[];
+  // Every chapter has a ground trail and rewards for taking the high route.
+  for(const [x,w] of level.grounds)for(let tx=Math.max(240,x+90);tx<x+w-75&&tx<level.finish-80;tx+=180)
+    treats.push({x:tx,y:560,kind:['cookie','candy','lolly'][treats.length%3]});
+  for(const [x,y,w] of level.floats) {
+    treats.push({x:x+w*.35,y:y-50,kind:'cupcake'});
+    treats.push({x:x+w*.7,y:y-55,kind:'lolly'});
   }
   const adventure={levelId:level.id,pet:PETS.some(p=>p.id===pet)?pet:'kitty',outfit:OUTFITS.some(o=>o.id===outfit)?outfit:'rose',treats,collected:new Set(),score:0,
-    gems:[{x:690,y:410},{x:1040,y:365},{x:1630,y:360},{x:2460,y:315},{x:3340,y:370},{x:3720,y:440}],
-    gemsGot:new Set(),chests:[{x:1340,y:610},{x:3830,y:610}],opened:new Set(),
-    potions:[{x:590,y:465},{x:1550,y:440},{x:3290,y:455}],potionsGot:new Set(),
+    gems:level.floats.filter((_,i)=>i%3===1).map(([x,y,w])=>({x:x+w*.15,y:y-85})),
+    gemsGot:new Set(),chests:level.chests.map(x=>({x,y:610})),opened:new Set(),
+    potions:level.floats.filter((_,i)=>i%6===0).map(([x,y])=>({x:x+25,y:y-88})),potionsGot:new Set(),
     friends:[
       {x:500,y:610,name:'Mallow',need:6,color:'#d6a5bd',met:false,helped:false},
       {x:1420,y:610,name:'Peaches',need:12,color:'#e3b483',met:false,helped:false},
       {x:3940,y:610,name:'Minty',need:24,color:'#a5c6a0',met:false,helped:false}
     ],rainbow:0,helper:false,petX:100,petY:590};
-  if(level.id!=='meadow') {
-    adventure.gems=level.floats.filter((_,i)=>i%3===1).slice(0,6).map(([x,y,w])=>({x:x+w*.15,y:y-85}));
-    adventure.chests=level.chests.map(x=>({x,y:610}));
-    adventure.potions=[level.floats[0],level.floats[4],level.floats[10]].map(([x,y,w])=>({x:x+25,y:y-88}));
-    adventure.friends.forEach((friend,i)=>{friend.x=level.friends[i];});
-  }
+  adventure.friends.forEach((friend,i)=>{friend.x=level.friends[i];});
   return adventure;
 }
 export function powersFor(a) {

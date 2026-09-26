@@ -1,4 +1,4 @@
-const CACHE = 'emmabug-v11-revamp';
+const CACHE = 'emmabug-v17-longer-adventures';
 const FILES = [
   "./",
   "./index.html",
