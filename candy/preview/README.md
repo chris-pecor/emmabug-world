@@ -20,6 +20,18 @@ the tab clears held controls and pauses. Sound starts muted.
   bridges, climbing routes, and treasures throughout the later chapters.
 - Fixed-step physics, buffered jumps, edge grace, moving platforms, gumdrop springs,
   and safe recovery after falls. Each castle is reachable without a pet power.
+- Candy Meadow has a short bunny story before the long castle route: peek at
+  Pip, pick a carrot for Peaches, sing to Moon, then bring all three to the
+  bunny cottage. Pawprints, illustrated buttons, and short words guide play;
+  tap the action button or press E when nearby. The picture checklist has clues.
+- Rescued bunnies follow Emma's jumps. Bringing everyone home starts a parade
+  and adds the family to My room. Snack, Play, and Sleep have pictures and short
+  responses; choices save automatically, with no timers or care penalties.
+  The room opens in Play view; Decorate opens the furniture tools.
+- Three untimed bubble-wish trails per adventure: jump through all five bubbles
+  for bonus sweets, eight seconds of rainbow magnet magic, and a balloon party.
+- Layered cottages, ribbon arches, sugar-crystal platforms, and drifting
+  pollen/fireflies; scenery continues throughout the extended courses.
 - Treats, three stars per adventure, gems, chests, rainbow magnets, helpful gummy
   bears, and grumps that give a gentle bounce. Side contact does not hurt.
 - Eight pets: Kitty attracts treats, Bunny jumps higher, Pengy runs faster,
@@ -77,6 +89,7 @@ node candy/preview/physics.test.mjs
 node candy/preview/adventure.test.mjs
 node candy/preview/levels.test.mjs
 node candy/preview/release.test.mjs
+node candy/preview/rescue.test.mjs
 ```
 
 All 39 checks pass. Coverage includes frame-rate independence, jump timing,
@@ -97,3 +110,13 @@ disabled for this test.
 Public-internet NAT traversal and physical devices have not been tested. Emma's
 playtest remains useful for comfort and readability. GitHub Pages publishes the `main` branch at
 https://chris-pecor.github.io/emmabug-world/candy/. Screenshots are in `../../docs/`.
+
+## Bunny story checks — September 26, 2026
+
+The rescue tests cover distinct interactions, the carrot prerequisite, nearby
+platform access, one-time home completion, follower paths, custom-land isolation,
+and save validation. Chromium playthroughs completed all three rescues and the
+home celebration with keyboard and emulated phone touch input. Snack, Play,
+Sleep, reload persistence, and furniture undo passed without runtime errors.
+The phone check used reduced motion. Screenshots: `../../docs/candy-bunny-home-phone.png`
+and `../../docs/candy-bunny-clues-phone.png`.

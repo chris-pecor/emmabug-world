@@ -50,3 +50,28 @@ test('outfit choices default safely when opening an older or invalid preview sav
  assert.equal(createAdventure('invalid','invalid').outfit,'rose');
  assert.equal(createAdventure('flutter','mint').outfit,'mint');
 });
+
+test('bubble wishes wait for all five pops and grant their celebration only once',()=>{
+ const a=createAdventure('bunny');a.treats=[];a.gems=[];a.potions=[];a.chests=[];a.friends=[];
+ const trail=a.bubbles.filter(b=>b.group===0),p={x:0,y:0,onGround:false};
+ for(const [i,b] of trail.entries()){
+  Object.assign(p,{x:b.x,y:b.y+48});
+  const events=updateAdventure(a,p,STEP);
+  assert.equal(events.filter(e=>e.type==='bubble').length,1);
+  assert.equal(events.some(e=>e.type==='wish'),i===4);
+  assert.equal(a.score,(i+1)*2+(i===4?10:0));
+  assert.equal(updateAdventure(a,p,STEP).length,0);
+ }
+ assert.equal(a.wishes.size,1);assert.ok(a.celebration>7);assert.ok(a.rainbow>7);
+ updateAdventure(a,{x:-1000,y:0},9);assert.equal(a.celebration,0);assert.equal(a.rainbow,0);
+ const fresh=createAdventure('bunny');assert.equal(fresh.bubblesGot.size,0);assert.equal(fresh.wishes.size,0);
+});
+
+test('bubble trails have no timeout and custom lands do not inherit adventure bubbles',async()=>{
+ const a=createAdventure('bunny'),b=a.bubbles[0];
+ updateAdventure(a,{x:b.x,y:b.y+48},STEP);
+ updateAdventure(a,{x:-1000,y:0},120);
+ assert.equal(a.bubblesGot.size,1);
+ const {compileLand}=await import('./creative.mjs');
+ assert.deepEqual(compileLand([]).adventure.bubbles,[]);
+});

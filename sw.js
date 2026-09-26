@@ -1,4 +1,4 @@
-const CACHE = 'emmabug-v17-longer-adventures';
+const CACHE = 'emmabug-v20-arm-animation';
 const FILES = [
   "./",
   "./index.html",
@@ -18,6 +18,7 @@ const FILES = [
   "./candy/preview/style.css",
   "./candy/preview/vendor/peerjs.min.js",
   "./candy/preview/adventure.mjs",
+  "./candy/preview/rescue.mjs",
   "./candy/preview/art.mjs",
   "./candy/preview/creative.mjs",
   "./candy/preview/family-ui.mjs",

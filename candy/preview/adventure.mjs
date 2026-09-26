@@ -1,3 +1,4 @@
+import {createRescue} from './rescue.mjs';
 import {levelById} from './levels.mjs';
 
 export const PETS = [
@@ -24,6 +25,14 @@ OUTFITS.push(
  {id:'royal',name:'Royal Gold',hint:'For a queen of kindness',dark:'#bc9353',light:'#e7c276',trim:'#efd995',hem:'#fff0be',shoe:'#9e7946',jewel:'#c891a6',motif:'star'}
 );
 export const questNeed=(friend,pet)=>pet==='shelly'?Math.max(1,Math.ceil(friend.need*.75)):friend.need;
+// Three optional, untimed bubble trails on roomy islands in each adventure.
+export function bubbleTrails(level) {
+  const islands=[level.grounds[0],level.grounds[Math.floor(level.grounds.length/2)],level.grounds.at(-1)];
+  return islands.flatMap(([x],group)=>{
+    const start=Math.max(360,Math.min(x+100,level.finish-450));
+    return Array.from({length:5},(_,i)=>({x:start+i*65,y:540-Math.sin(i*Math.PI/4)*85,group}));
+  });
+}
 export function createAdventure(pet='kitty',outfit='rose',levelId='meadow') {
   const level=levelById(levelId);
   const treats=[];
@@ -34,7 +43,7 @@ export function createAdventure(pet='kitty',outfit='rose',levelId='meadow') {
     treats.push({x:x+w*.35,y:y-50,kind:'cupcake'});
     treats.push({x:x+w*.7,y:y-55,kind:'lolly'});
   }
-  const adventure={levelId:level.id,pet:PETS.some(p=>p.id===pet)?pet:'kitty',outfit:OUTFITS.some(o=>o.id===outfit)?outfit:'rose',treats,collected:new Set(),score:0,
+  const adventure={rescue:createRescue(level.id),bubbles:bubbleTrails(level),bubblesGot:new Set(),wishes:new Set(),celebration:0,levelId:level.id,pet:PETS.some(p=>p.id===pet)?pet:'kitty',outfit:OUTFITS.some(o=>o.id===outfit)?outfit:'rose',treats,collected:new Set(),score:0,
     gems:level.floats.filter((_,i)=>i%3===1).map(([x,y,w])=>({x:x+w*.15,y:y-85})),
     gemsGot:new Set(),chests:level.chests.map(x=>({x,y:610})),opened:new Set(),
     potions:level.floats.filter((_,i)=>i%6===0).map(([x,y])=>({x:x+25,y:y-88})),potionsGot:new Set(),
@@ -50,9 +59,19 @@ export function powersFor(a) {
   return {[PETS.find(p=>p.id===a.pet)?.key]:true,magnet:a.pet==='kitty'||a.rainbow>0};
 }
 export function updateAdventure(a,p,dt) {
-  const events=[];a.rainbow=Math.max(0,a.rainbow-dt);
+  const events=[];a.celebration=Math.max(0,a.celebration-dt);a.rainbow=Math.max(0,a.rainbow-dt);
   if(p.won)return events;
   const powers=powersFor(a),px=p.x,py=p.y-48;
+  a.bubbles.forEach((bubble,i)=>{
+    if(a.bubblesGot.has(i)||Math.hypot(bubble.x-px,bubble.y-py)>=44)return;
+    a.bubblesGot.add(i);a.score+=2;
+    const count=a.bubbles.filter((b,j)=>b.group===bubble.group&&a.bubblesGot.has(j)).length;
+    events.push({type:'bubble',...bubble,count});
+    if(count===5&&!a.wishes.has(bubble.group)){
+      a.wishes.add(bubble.group);a.score+=10;a.rainbow=Math.max(a.rainbow,8);a.celebration=8;
+      events.push({type:'wish',...bubble});
+    }
+  });
   a.treats.forEach((t,i)=>{
     if(a.collected.has(i))return;
     let d=Math.hypot(t.x-px,t.y-py);

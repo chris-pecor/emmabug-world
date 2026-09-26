@@ -1,3 +1,4 @@
+import {BUNNIES,rescueAction,interactRescue,updateRescue} from './rescue.mjs';
 import {createWorld,createPlayer,createStepper,tick,SAVE_KEY} from './physics.mjs';
 import {PETS,OUTFITS,createAdventure,powersFor,updateAdventure} from './adventure.mjs';
 import {LEVELS} from './levels.mjs';
@@ -23,6 +24,50 @@ try {best=readProgress(localStorage.getItem(activeSave));}catch{}
 world=createWorld(best.lastLevel);
 let adventure=createAdventure(best.pet,best.outfit,world.level.id);collected=adventure.collected;
 const input={left:false,right:false,jump:false,jumpPressed:false};
+const storyPictures=Object.fromEntries(['peek','carrot','song','heart','home','play','sleep'].map(id=>[id,renderer.storyPortrait(id)]));
+const bunnyPictures=Object.fromEntries(BUNNIES.map(b=>[b.id,renderer.bunnyPortrait(b.id)]));
+let rescueDisplay='';
+const rescueGoal=document.createElement('button');rescueGoal.id='rescue-goal';rescueGoal.hidden=true;
+const rescueButton=document.createElement('button');rescueButton.id='rescue-action';rescueButton.hidden=true;
+document.body.append(rescueGoal,rescueButton);
+const rescuePanel=document.createElement('div');rescuePanel.id='rescue-panel';rescuePanel.hidden=true;
+$('resume').before(rescuePanel);
+function updateRescueUI(){
+  const r=adventure.rescue,action=rescueAction(r,p);
+  rescueGoal.hidden=!r||paused;rescueButton.hidden=!action||paused;
+  const key=r?r.bunnies.map(b=>b.stage).join(',')+r.home:'';
+  if(r&&key!==rescueDisplay){
+    rescueDisplay=key;
+    rescueGoal.innerHTML=r.bunnies.map(b=>`<span class="bunny-check ${b.stage==='following'?'found':''}"><img src="${bunnyPictures[b.id]}" alt="${b.name}${b.stage==='following'?', found':', hiding'}"><b aria-hidden="true">${b.stage==='following'?'♥':'?'}</b></span>`).join('')+`<span class="bunny-goal-home">→<img src="${storyPictures.home}" alt="Home"></span>`;
+    rescueGoal.setAttribute('aria-label',r.home?'Visit your bunny family':`Bunny picture clues. ${r.bunnies.filter(b=>b.stage==='following').length} of 3 found.`);
+  }
+  if(action&&rescueButton.dataset.action!==action.label){rescueButton.dataset.action=action.label;rescueButton.innerHTML=`<img src="${storyPictures[action.icon]}" alt=""><span>${action.label}</span>`;}
+
+}
+function showRescueJournal(){
+  const r=adventure.rescue;if(!r)return;
+  showModal();rescuePanel.hidden=false;
+  $('modal-eyebrow').textContent='BUNNY FRIENDS';
+  $('modal-title').textContent=r.home?'Home together!':'Find the bunnies';
+  $('modal-copy').textContent=r.home?'Let’s play!':'Look for ears!';
+  rescuePanel.innerHTML=`<div class="rescue-friends">${r.bunnies.map((b,i)=>`<div><img src="${storyPictures[['peek','carrot','song'][i]]}" alt="${['Look in the bush','Offer a carrot','Sing a song'][i]}"><small>${['Peek','Feed','Sing'][i]}</small><span aria-hidden="true">↓</span><img src="${bunnyPictures[b.id]}" alt="${b.name}" class="${b.stage==='following'?'':'undiscovered'}"><b>${b.name}</b></div>`).join('')}</div>${r.home?`<button id="visit-bunnies" class="primary picture-room"><img src="${storyPictures.home}" alt="">My bunny room →</button>`:''}`;
+  if(r.home)$('visit-bunnies').onclick=()=>workshop.open('room');
+  $('resume').textContent='Let’s go! →';
+}
+function meetBunny(){
+  if(paused)return;const event=interactRescue(adventure.rescue,p);if(!event)return;
+  unlock();toast(event.text,5);burst(p.x,p.y-60,18);sound(event.type==='reveal'?660:950,.22);
+  if(event.type==='reveal'&&event.id==='moon')[660,830,740,990].forEach((f,i)=>sound(f,.25,i*.2));
+  if(event.type==='home'){
+    workshop.adoptBunnies(BUNNIES.map(b=>b.id));adventure.celebration=12;
+    [660,830,990,1320].forEach((f,i)=>sound(f,.3,i*.15));burst(p.x,p.y-110,50);
+    // Give the parade a moment before inviting Emma into pretend play.
+    toast('Home together! ♥',5);
+  }
+  if(event.type==='hint'&&rescueAction(adventure.rescue,p)?.id==='home')showRescueJournal();
+  updateRescueUI();
+}
+rescueGoal.onclick=showRescueJournal;rescueButton.onclick=meetBunny;
 const keys=new Set(),pointers=new Map();
 const mapping={ArrowLeft:'left',a:'left',A:'left',ArrowRight:'right',d:'right',D:'right',ArrowUp:'jump',w:'jump',W:'jump',' ':'jump'};
 function syncInput() {
@@ -56,11 +101,12 @@ function saveBest(){
   try{localStorage.setItem(activeSave,JSON.stringify(best));}catch{}
 }
 function updateChapter(){
-  $('level-title').textContent=world.level.name;$('level-subtitle').textContent=world.level.subtitle;
+  $('level-title').textContent=world.level.name;$('level-subtitle').textContent=adventure.rescue?'Three little bunnies. One happy home.':world.level.subtitle;
   document.title=`${world.level.name} · Emmabug's World`;
   $('game').setAttribute('aria-label',`${world.level.name}. Use arrows or A and D to move and Space or Up to jump.`);
 }
 function showModal(win=false){
+  rescuePanel.hidden=true;
   extraPanel='';$('creative-panel').hidden=true;$('family-panel').hidden=true;
   paused=true;clearInput();$('modal').hidden=false;$('math-panel').hidden=true;$('resume').hidden=false;$('pet-panel').hidden=true;$('map-panel').hidden=true;$('modal').classList.remove('pet-modal','map-modal','workshop-modal','family-modal');
   $('next-level').hidden=!win;
@@ -76,7 +122,7 @@ function startLevel(id){
   saveBest();const {pet,outfit}=adventure;world=createWorld(id);p=createPlayer();
   adventure=createAdventure(pet,outfit,world.level.id);collected=adventure.collected;cam=0;
   stars.clear();particles=[];wonDelay=0;gateSolved=false;updateHUD();updateChapter();resume();saveBest();
-  toast(world.level.subtitle,5);
+  toast(adventure.rescue?'Find the bunnies! ♥':'Jump through five shiny bubbles to make a rainbow wish!',6);
 }
 function restart(){if(world.level.id==='custom')playCustom(activeLand);else startLevel(world.level.id);}
 function showMap(){
@@ -113,7 +159,7 @@ function showCountingDoor(){
 $('magic-door').addEventListener('click',openCastle);
 function renderPets(){
   $('pet-grid').innerHTML=PETS.map(pet=>`<button data-pet="${pet.id}" class="pet-card ${adventure.pet===pet.id?'selected':''}" aria-pressed="${adventure.pet===pet.id}"><span><img src="${petPortraits[pet.id]}" alt=""></span><b>${pet.name}</b><strong>${pet.power}</strong><small>${pet.hint}</small></button>`).join('');
-  $('treasure-bag').innerHTML=`<span>◆ <b>${collected.size}/${adventure.treats.length}</b> treats found</span><span>♦ <b>${adventure.gemsGot.size}/${adventure.gems.length}</b> gems</span><span>▣ <b>${adventure.opened.size}/${adventure.chests.length}</b> treasure chests</span><span>♥ <b>${adventure.friends.filter(f=>f.helped).length}/${adventure.friends.length}</b> bears helped</span><span>${adventure.helper?'★ Meadow helper!':`✿ Find ${Math.max(0,12-collected.size)} more treats for a helper badge`}</span>`;
+  $('treasure-bag').innerHTML=`<span>◆ <b>${collected.size}/${adventure.treats.length}</b> treats found</span><span>○ <b>${adventure.bubblesGot.size}/${adventure.bubbles.length}</b> wish bubbles · ${adventure.wishes.size} trails completed</span><span>♦ <b>${adventure.gemsGot.size}/${adventure.gems.length}</b> gems</span><span>▣ <b>${adventure.opened.size}/${adventure.chests.length}</b> treasure chests</span><span>♥ <b>${adventure.friends.filter(f=>f.helped).length}/${adventure.friends.length}</b> bears helped</span><span>${adventure.helper?'★ Meadow helper!':`✿ Find ${Math.max(0,12-collected.size)} more treats for a helper badge`}</span>`;
   $('pet-grid').querySelectorAll('[data-pet]').forEach(button=>button.addEventListener('click',()=>{
     adventure.pet=button.dataset.pet;p.powers=powersFor(adventure);
     // Switching friends in the air cannot refill spent jumps.
@@ -154,6 +200,7 @@ addEventListener('keydown',e=>{
     if(e.key==='Tab') {const focusable=[...$('modal').querySelectorAll('button,a')].filter(el=>el.getClientRects().length);const first=focusable[0],last=focusable.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
     return;
   }
+  if(e.key.toLowerCase()==='e'&&!e.repeat&&!e.target.closest('button,a,input,select')){e.preventDefault();meetBunny();return;}
   if(!mapping[e.key]||e.target.closest('button,a,input,select'))return;
   e.preventDefault();keys.add(e.key);syncInput();unlock();
 });
@@ -172,12 +219,15 @@ function update(dt){
   p.powers=powersFor(adventure);
   const previousScore=adventure.score;
   const events=tick(world,p,input,dt);
+  updateRescue(adventure.rescue,p,dt,world.platforms);
   const petTargetX=p.x-p.face*48,petTargetY=p.y-(adventure.pet==='flutter'||adventure.pet==='draggy'?65:12);
   adventure.petX+=(petTargetX-adventure.petX)*(1-Math.exp(-7*dt));adventure.petY+=(petTargetY-adventure.petY)*(1-Math.exp(-7*dt));
   const found=updateAdventure(adventure,p,dt);
   for(const item of found){
     burst(item.x,item.y,item.type==='treat'?8:26);
     if(item.type==='treat')sound(750+(adventure.score%5)*80);
+    if(item.type==='bubble'){sound(660+item.count*110,.16);toast(`Pop! ${item.count}/5 bubbles in this wish trail.`,2);}
+    if(item.type==='wish'){[660,830,990,1320].forEach((f,i)=>sound(f,.25,i*.12));burst(item.x,item.y,45);toast('A wish came true! +10 sweets and a rainbow party!',5);}
     if(item.type==='gem'){sound(1300,.2);toast('A tiny jewel for your treasure bag!');}
     if(item.type==='potion'){sound(1000,.3);toast('Rainbow magic! Sweets come to you for 12 seconds.');}
     if(item.type==='chest'){sound(900,.3);sound(1200,.3,.15);toast('A little treasure! Five bonus sweets.');}
@@ -239,10 +289,11 @@ const stepper=createStepper(update);let last=performance.now();
 function frame(now){const dt=(now-last)/1000;last=now;if(!paused)stepper.advance(dt);
  const peers=family.players(),live=new Set(peers.map(f=>f.slot));for(const slot of remoteDraw.keys())if(!live.has(slot))remoteDraw.delete(slot);
  const friends=peers.map(f=>{let draw=remoteDraw.get(f.slot);if(!draw||draw.level!==f.level)draw={x:f.x,y:f.y,level:f.level};const moving=Math.abs(f.x-draw.x)>1,k=1-Math.exp(-12*Math.min(dt,.1));draw.x+=(f.x-draw.x)*k;draw.y+=(f.y-draw.y)*k;remoteDraw.set(f.slot,draw);return {...f,...draw,moving,label:NAMES[f.name]};});
+ updateRescueUI();
  renderer.draw({world,p,cam,collected,stars,particles,adventure,friends,networkLevel:networkLevel()});requestAnimationFrame(frame);
 }
-updateHUD();updateChapter();requestAnimationFrame(frame);
+updateHUD();updateChapter();toast(adventure.rescue?'Find the bunnies! ♥':'Jump through five shiny bubbles to make a rainbow wish!',6);requestAnimationFrame(frame);
 // Explicit, read-only diagnostics for local browser checks.
-window.candyPreview={snapshot:()=>({level:world.level.id,x:p.x,y:p.y,onGround:p.onGround,won:p.won,gateSolved,paused,extraPanel,creative:workshop.snapshot(),family:family.status(),candies:adventure.score,treats:collected.size,stars:stars.size,time:world.time,pet:adventure.pet,outfit:adventure.outfit,bears:adventure.friends.filter(f=>f.helped).length,bops:world.grumps.filter(g=>g.earned).length,powers:p.powers,gems:adventure.gemsGot.size,chests:adventure.opened.size,rainbow:adventure.rainbow})};
+window.candyPreview={snapshot:()=>({level:world.level.id,x:p.x,y:p.y,onGround:p.onGround,won:p.won,gateSolved,paused,extraPanel,creative:workshop.snapshot(),family:family.status(),candies:adventure.score,treats:collected.size,stars:stars.size,time:world.time,pet:adventure.pet,outfit:adventure.outfit,bears:adventure.friends.filter(f=>f.helped).length,bops:world.grumps.filter(g=>g.earned).length,powers:p.powers,gems:adventure.gemsGot.size,chests:adventure.opened.size,rainbow:adventure.rainbow,bubbles:adventure.bubblesGot.size,wishes:adventure.wishes.size,celebration:adventure.celebration,rescue:adventure.rescue?{bunnies:adventure.rescue.bunnies.map(b=>({id:b.id,stage:b.stage})),carrot:adventure.rescue.carrot,home:adventure.rescue.home,action:rescueAction(adventure.rescue,p)?.id}:null})};
 
 if(new URL(location.href).searchParams.has('room'))familyUI.open();

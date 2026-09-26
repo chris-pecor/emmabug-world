@@ -10,19 +10,19 @@ for(const level of LEVELS) {
   for(let n=0;n<120*45&&!p.won;n++){if(n%66===0)input.jumpPressed=true;rescues+=tick(w,p,input).filter(e=>e==='rescue').length;}
   assert.equal(p.won,true);assert.equal(rescues,0);
  });
- test(`${level.name}: all stars can be reached from nearby platforms with ordinary jumps`,()=>{
-  for(const target of level.stars){let reached=false;
+ test(`${level.name}: all stars and wish bubbles can be reached with ordinary jumps`,()=>{
+  for(const target of [...level.stars.map(([x,y])=>[x,y,55,48]),...createAdventure('bunny','rose',level.id).bubbles.map(b=>[b.x,b.y,48,44])]){let reached=false;
    const bases=createWorld(level.id).platforms.map((pl,i)=>({pl,i})).filter(({pl})=>target[0]>pl.x-300&&target[0]<pl.x+pl.w+300&&pl.y>target[1]);
-   outer:for(const {pl,i} of bases)for(const offset of [.2,.5,.8])for(const extra of [24,42,60]){
+   outer:for(const {pl,i} of bases)for(const offset of [.2,.5,.8,Math.max(0,Math.min(1,(target[0]-pl.x)/pl.w))])for(const extra of [-1,24,42,60]){
     const w=createWorld(level.id),p=createPlayer(),input={left:false,right:false,jumpPressed:false};
     Object.assign(p,{x:pl.x+pl.w*offset,y:pl.y,onGround:true,stand:i});
     for(let n=0;n<240;n++){
-     input.right=p.x<target[0]-10;input.left=p.x>target[0]+10;input.jumpPressed=n===0||n===extra;
+     input.right=p.x<target[0]-10;input.left=p.x>target[0]+10;input.jumpPressed=extra>=0&&(n===0||n===extra);
      tick(w,p,input);
-     if(Math.hypot(p.x-target[0],p.y-55-target[1])<48){reached=true;break outer;}
+     if(Math.hypot(p.x-target[0],p.y-target[2]-target[1])<target[3]){reached=true;break outer;}
     }
    }
-   assert.equal(reached,true,`unreachable star at ${target}`);
+   assert.equal(reached,true,`unreachable collectible at ${target}`);
   }
  });
  test(`${level.name}: grounded rewards sit on land and runtime state is isolated`,()=>{
